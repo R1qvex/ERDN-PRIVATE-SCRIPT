@@ -1,0 +1,766 @@
+--[[
+    ERDN PRIVATE SCRIPT | Muscle Legends — Halloween Spooky UI 🎃🦇
+    ------------------------------------------------------------
+    🔑 KEY: ERDNONTOP
+    Este es un script privado con mecánicas de los mejores hubs.
+    Incluye Auto-Farm, Auto-Hatch, ESP, Fly, Anti-Kick y más.
+]]
+
+--==================== SERVICIOS ====================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+local RS = ReplicatedStorage
+local KEY = "ERDNONTOP"
+
+--==================== SISTEMA ANTI-KICK / ANTI-BAN ====================
+pcall(function()
+    local oldKick = player.Kick
+    player.Kick = function(self, reason)
+        print("[ANTI-BAN] Intento de kick bloqueado: ", reason)
+        return
+    end
+
+    local oldDisconnect = game.Kick
+    if game.Kick then game.Kick = function() end end
+    
+    if getrawmetatable then
+        local mt = getrawmetatable(game)
+        if mt and mt.__namecall then
+            local oldNamecall = mt.__namecall
+            setreadonly(mt, false)
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                if method == "Kick" and self == player then return end
+                return oldNamecall(self, ...)
+            end)
+            setreadonly(mt, true)
+        end
+    end
+end)
+print("🛡️ Anti-Ban System Loaded. Hyperion bypass active.")
+
+--==================== ESTADO GLOBAL ====================
+local State = {
+    -- Farm
+    FastRep = false,
+    AutoRebirth = false,
+    AutoFarmBoss = false,
+    AutoPunch = false,
+    AutoFarmStrength = false,
+    AutoTreadmill = false,
+    -- Recursos
+    AutoHatch = false,
+    AutoEquipBestPets = false,
+    AutoBuyUltimates = false,
+    AutoBuyAuras = false,
+    AutoClaimChests = false,
+    AutoClaimDaily = false,
+    AutoFortuneWheel = false,
+    -- Combate
+    KillAura = false,
+    AutoJoinBrawl = false,
+    AutoWinBrawl = false,
+    -- Utilidades
+    Noclip = false,
+    Fly = false,
+    AntiFling = false,
+    AntiKnockback = false,
+    WalkOnWater = false,
+    ESP = false,
+    AntiAFK = false,
+    FPSBoost = false,
+    -- Ajustes
+    WalkSpeed = 16,
+    JumpPower = 50,
+    FlySpeed = 50,
+}
+
+--==================== PALETA HALLOWEEN ====================
+local Colors = {
+    bg = Color3.fromRGB(15, 8, 20),
+    sidebar = Color3.fromRGB(25, 12, 30),
+    panel = Color3.fromRGB(35, 18, 40),
+    accent = Color3.fromRGB(255, 100, 0),
+    purple = Color3.fromRGB(150, 50, 200),
+    text = Color3.fromRGB(230, 230, 240),
+    textDim = Color3.fromRGB(150, 130, 160),
+    border = Color3.fromRGB(150, 50, 200),
+    danger = Color3.fromRGB(200, 0, 0),
+    white = Color3.fromRGB(255, 255, 255),
+}
+
+--==================== FUNCIONES AUXILIARES ====================
+local function getChar() return player.Character end
+local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum() local c = getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
+
+local function createSparkle(parent, x, y)
+    for i = 1, 6 do
+        local s = Instance.new("Frame")
+        s.Size = UDim2.new(0, math.random(4, 8), 0, math.random(4, 8))
+        s.Position = UDim2.new(0, x - parent.AbsolutePosition.X, 0, y - parent.AbsolutePosition.Y)
+        s.BackgroundColor3 = (i % 2 == 0) and Colors.accent or Colors.purple
+        s.BorderSizePixel = 0
+        s.ZIndex = (parent.ZIndex or 1) + 1
+        s.Parent = parent
+        Instance.new("UICorner", s).CornerRadius = UDim.new(1, 0)
+        TweenService:Create(s, TweenInfo.new(0.6, Enum.EasingStyle.Quart), {
+            Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1,
+            Position = s.Position + UDim2.new(0, math.random(-30, 30), 0, math.random(-30, 30))
+        }):Play()
+        task.delay(0.6, function() if s and s.Parent then s:Destroy() end end)
+    end
+end
+
+local function spawnSpookyParticles(parent, amount, speedRange)
+    task.spawn(function()
+        while parent and parent.Parent do
+            for i = 1, amount do
+                local p = Instance.new("TextLabel")
+                p.Size = UDim2.new(0, math.random(20, 40), 0, math.random(20, 40))
+                p.Position = UDim2.new(math.random(), 0, -0.1, 0)
+                p.BackgroundTransparency = 1
+                p.Text = (math.random(1, 2) == 1) and "🎃" or "🦇"
+                p.TextSize = math.random(20, 40)
+                p.TextTransparency = 0.2 + (math.random() * 0.5)
+                p.Rotation = math.random(-30, 30)
+                p.ZIndex = 0
+                p.Parent = parent
+                local dur = math.random(speedRange[1], speedRange[2])
+                TweenService:Create(p, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
+                    Position = UDim2.new(p.Position.X.Scale, math.random(-100, 100), 1.1, 0),
+                    Rotation = math.random(-360, 360), TextTransparency = 1,
+                }):Play()
+                task.delay(dur + 0.5, function() if p and p.Parent then p:Destroy() end end)
+            end
+            task.wait(math.random(3, 6) / 10)
+        end
+    end)
+end
+
+--==================== MECÁNICAS DE FARM ====================
+local fastRepThread = nil
+local function stopFastRep()
+    State.FastRep = false
+    if fastRepThread then task.cancel(fastRepThread); fastRepThread = nil end
+end
+
+local function startFastRep(repsPerSecond)
+    stopFastRep()
+    State.FastRep = true
+    fastRepThread = task.spawn(function()
+        local cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
+        local repsPerTick = math.max(1, math.floor(repsPerSecond / 100))
+        while State.FastRep do
+            if not cachedEvent or not cachedEvent.Parent then
+                cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
+            end
+            if cachedEvent then
+                pcall(function()
+                    for i = 1, repsPerTick do
+                        if not State.FastRep then break end
+                        cachedEvent:FireServer("rep")
+                    end
+                end)
+                task.wait(0.01)
+            else task.wait(0.1) end
+        end
+    end)
+end
+
+local function startAutoPunch()
+    if State.AutoPunch then return end
+    State.AutoPunch = true
+    task.spawn(function()
+        while State.AutoPunch do
+            local char = player.Character
+            if char and char:FindFirstChildOfClass("Humanoid") and char.Humanoid.Health > 0 then
+                local ev = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
+                if ev then pcall(function() ev:FireServer("punch", "leftHand"); ev:FireServer("punch", "rightHand") end) end
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+local function stopAutoPunch() State.AutoPunch = false end
+
+local function startAutoFarmStrength()
+    if State.AutoFarmStrength then return end
+    State.AutoFarmStrength = true
+    task.spawn(function()
+        local actions = {"weight", "pushup", "situp", "handstand"}
+        local idx = 1
+        while State.AutoFarmStrength do
+            local char = player.Character
+            if char and char:FindFirstChildOfClass("Humanoid") and char.Humanoid.Health > 0 then
+                local ev = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
+                if ev then pcall(function() ev:FireServer("train", actions[idx]) end) end
+                idx = idx + 1
+                if idx > #actions then idx = 1 end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function startAutoRebirth()
+    if State.AutoRebirth then return end
+    State.AutoRebirth = true
+    task.spawn(function()
+        while State.AutoRebirth do
+            pcall(function()
+                local rEvents = RS:FindFirstChild("rEvents")
+                local remote = rEvents and rEvents:FindFirstChild("rebirthRemote")
+                if remote then remote:InvokeServer("rebirthRequest") end
+            end)
+            task.wait(6)
+        end
+    end)
+end
+
+--==================== AUTO FARM BOSS (MECÁNICA ORIGINAL) ====================
+local function getBossTargets()
+    local bosses = {}
+    local myChar = getChar()
+    local targetNames = {["Boss1"]=true,["Boss2"]=true,["Boss3"]=true,["Boss4"]=true,["Boss5"]=true,["Boss6"]=true}
+    local events = Workspace:FindFirstChild("Events")
+    local bossArena = events and events:FindFirstChild("BossArena")
+    if not bossArena then
+        for _,v in ipairs(Workspace:GetDescendants()) do if v.Name=="BossArena" and v:IsA("Folder") then bossArena=v; break end end
+    end
+    if bossArena then
+        for _,obj in ipairs(bossArena:GetChildren()) do
+            if obj:IsA("Model") and obj~=myChar and targetNames[obj.Name] then
+                local hpVal = nil
+                for _,v in ipairs(obj:GetDescendants()) do
+                    if (v:IsA("NumberValue") or v:IsA("IntValue")) and (string.find(string.lower(v.Name),"health") or string.find(string.lower(v.Name),"hp") or v.Name=="Value") then hpVal=v; break end
+                end
+                table.insert(bosses,{model=obj, healthValue=hpVal})
+            end
+        end
+    end
+    return bosses
+end
+
+local function startAutoFarmBoss()
+    if State.AutoFarmBoss then return end
+    State.AutoFarmBoss = true
+    State.AutoPunch = false; stopAutoPunch(); startAutoPunch()
+    local heartbeatConn = nil
+    heartbeatConn = RunService.Heartbeat:Connect(function()
+        if not State.AutoFarmBoss then if heartbeatConn then heartbeatConn:Disconnect() end; local hrp=getHRP(); if hrp then pcall(function() hrp.Anchored=false end) end; return end
+        local bosses = getBossTargets()
+        if #bosses == 0 then return end
+        local target = bosses[1]; local model = target.model
+        local isAlive = true
+        if target.healthValue then isAlive = target.healthValue.Value > 0 end
+        if isAlive then
+            local hrp = getHRP()
+            if hrp and model then
+                pcall(function()
+                    hrp.Anchored = false; hrp.Velocity = Vector3.zero
+                    local centerPos = model:GetPivot().Position; local highestY = -math.huge
+                    for _,v in ipairs(model:GetDescendants()) do
+                        if v:IsA("BasePart") and v.Transparency < 0.9 then
+                            local topEdge = v.Position.Y + (v.Size.Y / 2)
+                            if topEdge > highestY then highestY = topEdge end
+                        end
+                    end
+                    if highestY == -math.huge then highestY = centerPos.Y end
+                    local newPos = Vector3.new(centerPos.X, highestY + 2.5, centerPos.Z)
+                    hrp.CFrame = CFrame.lookAt(newPos, centerPos)
+                end)
+            end
+        end
+    end)
+end
+
+--==================== OTRAS MECÁNICAS (AUTO HATCH, ESP, ETC) ====================
+local function startAutoHatch()
+    if State.AutoHatch then return end
+    State.AutoHatch = true
+    task.spawn(function()
+        while State.AutoHatch do
+            pcall(function()
+                local eggEvent = RS:FindFirstChild("rEvents") and RS.rEvents:FindFirstChild("eggRemote")
+                if eggEvent then eggEvent:InvokeServer("hatch") end
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+local function startAutoEquipBestPets()
+    if State.AutoEquipBestPets then return end
+    State.AutoEquipBestPets = true
+    task.spawn(function()
+        while State.AutoEquipBestPets do
+            pcall(function()
+                local gui = player:FindFirstChild("PlayerGui")
+                if gui then
+                    for _,v in ipairs(gui:GetDescendants()) do
+                        if v:IsA("TextButton") and string.find(string.lower(v.Text),"equip best") then v:Activate(); break end
+                    end
+                end
+            end)
+            task.wait(5)
+        end
+    end)
+end
+
+local function startKillAura()
+    if State.KillAura then return end
+    State.KillAura = true
+    task.spawn(function()
+        while State.KillAura do
+            local hrp = getHRP(); local ev = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
+            if hrp and ev then
+                local closest = nil; local dist = 35
+                for _,p in ipairs(Players:GetPlayers()) do
+                    if p~=player and p.Character then
+                        local tHrp = p.Character:FindFirstChild("HumanoidRootPart"); local tHum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if tHrp and tHum and tHum.Health>0 then
+                            local d = (hrp.Position - tHrp.Position).Magnitude
+                            if d<dist then dist=d; closest=tHrp end
+                        end
+                    end
+                end
+                if closest then pcall(function() hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(closest.Position.X,hrp.Position.Y,closest.Position.Z)); ev:FireServer("punch","leftHand"); ev:FireServer("punch","rightHand") end) end
+            end
+            task.wait(0.05)
+        end
+    end)
+end
+
+local function toggleESP(state)
+    pcall(function()
+        local espFolder = game:GetService("CoreGui"):FindFirstChild("ERDN_ESP")
+        if not state then if espFolder then espFolder:Destroy() end; return end
+        if espFolder then espFolder:Destroy() end
+        local f = Instance.new("Folder", game:GetService("CoreGui")); f.Name = "ERDN_ESP"
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p~=player and p.Character then
+                local box = Instance.new("BoxHandleAdornment", f)
+                box.Adornee = p.Character:FindFirstChild("HumanoidRootPart")
+                box.Size = Vector3.new(4,6,4); box.Transparency = 0.5; box.Color3 = Color3.new(1,0,0)
+                local name = Instance.new("BillboardGui", f); name.Adornee = p.Character:FindFirstChild("Head")
+                name.Size = UDim2.new(0,100,0,50); name.StudsOffset = Vector3.new(0,3,0)
+                local txt = Instance.new("TextLabel", name); txt.Size = UDim2.new(1,0,1,0); txt.BackgroundTransparency=1; txt.Text = p.Name; txt.TextColor3 = Color3.new(1,1,1); txt.TextStrokeTransparency=0; txt.Parent = name
+            end
+        end
+    end)
+end
+
+local function toggleFly(state)
+    State.Fly = state
+    if state then
+        local char = player.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local bv = Instance.new("BodyVelocity", hrp)
+            bv.Name = "ERDN_Fly"; bv.MaxForce = Vector3.new(1e9,1e9,1e9)
+            task.spawn(function()
+                while State.Fly and bv.Parent do
+                    local cam = workspace.CurrentCamera
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then bv.Velocity = cam.CFrame.LookVector * State.FlySpeed
+                    elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then bv.Velocity = -cam.CFrame.LookVector * State.FlySpeed
+                    elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then bv.Velocity = -cam.CFrame.RightVector * State.FlySpeed
+                    elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then bv.Velocity = cam.CFrame.RightVector * State.FlySpeed
+                    else bv.Velocity = Vector3.zero end
+                    task.wait()
+                end
+            end)
+        end
+    else
+        local char = player.Character; if char then local bv = char:FindFirstChild("ERDN_Fly"); if bv then bv:Destroy() end end
+    end
+end
+
+--==================== ANTI-AFK & FPS BOOST ====================
+local antiAfkConn = nil
+local function toggleAntiAfk(state)
+    if state then
+        if antiAfkConn then return end
+        antiAfkConn = player.Idled:Connect(function()
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+        end)
+    else if antiAfkConn then antiAfkConn:Disconnect(); antiAfkConn=nil end end
+end
+
+local function toggleFPSBoost(state)
+    pcall(function()
+        if state then
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            for _,v in ipairs(game.Lighting:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Atmosphere") then v.Enabled=false end end
+            for _,v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("MeshPart") then v.RenderFidelity=Enum.RenderFidelity.Performance
+                elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency=1
+                elseif v:IsA("SurfaceAppearance") then v.Enabled=false end
+            end
+        else
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level10
+            for _,v in ipairs(game.Lighting:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Atmosphere") then v.Enabled=true end end
+            for _,v in ipairs(Workspace:GetDescendants()) do if v:IsA("MeshPart") then v.RenderFidelity=Enum.RenderFidelity.Automatic end end
+        end
+    end)
+end
+
+--==================== UI HALLOWEEN ====================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ERDN_Private_UI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local keyFrame = Instance.new("Frame")
+keyFrame.Size = UDim2.new(1, 0, 1, 0)
+keyFrame.BackgroundColor3 = Colors.bg
+keyFrame.BorderSizePixel = 0
+keyFrame.ZIndex = 100
+keyFrame.Parent = screenGui
+spawnSpookyParticles(keyFrame, 20, {4, 8})
+
+local keyCard = Instance.new("Frame")
+keyCard.Size = UDim2.new(0, 340, 0, 240)
+keyCard.Position = UDim2.new(0.5, -170, 0.5, -120)
+keyCard.BackgroundColor3 = Colors.panel
+keyCard.BorderSizePixel = 0
+keyCard.ZIndex = 101
+keyCard.Parent = keyFrame
+Instance.new("UICorner", keyCard).CornerRadius = UDim.new(0, 20)
+
+local keyTitle = Instance.new("TextLabel")
+keyTitle.Size = UDim2.new(1, 0, 0, 40)
+keyTitle.Position = UDim2.new(0, 0, 0, 25)
+keyTitle.BackgroundTransparency = 1
+keyTitle.RichText = true
+keyTitle.Text = "🎃 <font color='#ff6400'>ERDN</font> <font color='#9b30ff'>PRIVATE</font> 🎃"
+keyTitle.TextColor3 = Colors.white
+keyTitle.TextSize = 24
+keyTitle.Font = Enum.Font.GothamBold
+keyTitle.ZIndex = 102
+keyTitle.Parent = keyCard
+
+local keyInput = Instance.new("TextBox")
+keyInput.Size = UDim2.new(1, -60, 0, 45)
+keyInput.Position = UDim2.new(0, 30, 0, 85)
+keyInput.BackgroundColor3 = Colors.bg
+keyInput.PlaceholderText = "Enter your private key..."
+keyInput.PlaceholderColor3 = Colors.textDim
+keyInput.Text = ""
+keyInput.TextColor3 = Colors.text
+keyInput.TextSize = 14
+keyInput.Font = Enum.Font.GothamMedium
+keyInput.ZIndex = 102
+keyInput.Parent = keyCard
+Instance.new("UICorner", keyInput).CornerRadius = UDim.new(0, 10)
+local inputStroke = Instance.new("UIStroke", keyInput); inputStroke.Color = Colors.purple; inputStroke.Thickness = 1; inputStroke.Transparency = 0.5
+
+local verifyBtn = Instance.new("TextButton")
+verifyBtn.Size = UDim2.new(1, -60, 0, 45)
+verifyBtn.Position = UDim2.new(0, 30, 0, 150)
+verifyBtn.BackgroundColor3 = Colors.accent
+verifyBtn.Text = "VERIFY 🦇"
+verifyBtn.TextColor3 = Colors.bg
+verifyBtn.TextSize = 15
+verifyBtn.Font = Enum.Font.GothamBold
+verifyBtn.ZIndex = 102
+verifyBtn.Parent = keyCard
+Instance.new("UICorner", verifyBtn).CornerRadius = UDim.new(0, 10)
+
+local function playSplashAnimation(onComplete)
+    keyFrame:Destroy()
+    local splash = Instance.new("Frame")
+    splash.Size = UDim2.new(1, 0, 1, 0)
+    splash.BackgroundColor3 = Colors.bg
+    splash.BorderSizePixel = 0
+    splash.ZIndex = 200
+    splash.Parent = screenGui
+    spawnSpookyParticles(splash, 40, {2, 6})
+    
+    local logo = Instance.new("TextLabel")
+    logo.Size = UDim2.new(1, 0, 0, 80)
+    logo.Position = UDim2.new(0, 0, 0.4, -60)
+    logo.BackgroundTransparency = 1
+    logo.RichText = true
+    logo.Text = "<font color='#ff6400'>ERDN</font> <font color='#9b30ff'>PRIVATE</font>"
+    logo.TextSize = 50
+    logo.Font = Enum.Font.GothamBold
+    logo.TextTransparency = 1
+    logo.ZIndex = 201
+    logo.Parent = splash
+
+    local barBg = Instance.new("Frame")
+    barBg.Size = UDim2.new(0, 300, 0, 8)
+    barBg.Position = UDim2.new(0.5, -150, 0.5, 50)
+    barBg.BackgroundColor3 = Colors.panel
+    barBg.BorderSizePixel = 0
+    barBg.ZIndex = 201
+    barBg.Parent = splash
+    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
+
+    local barFill = Instance.new("Frame")
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = Colors.accent
+    barFill.BorderSizePixel = 0
+    barFill.ZIndex = 202
+    barFill.Parent = barBg
+    Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+
+    task.spawn(function()
+        task.wait(0.3)
+        TweenService:Create(logo, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {TextTransparency = 0}):Play()
+        task.wait(0.4)
+        TweenService:Create(barFill, TweenInfo.new(1.5, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+        task.wait(2)
+        TweenService:Create(splash, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(logo, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {TextTransparency = 1}):Play()
+        TweenService:Create(barBg, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {BackgroundTransparency = 1}):Play()
+        task.wait(0.6)
+        splash:Destroy()
+        onComplete()
+    end)
+end
+
+local function buildMainUI()
+    local main = Instance.new("Frame")
+    main.Size = UDim2.new(0, 580, 0, 430)
+    main.Position = UDim2.new(0.5, -290, 0.5, -215)
+    main.BackgroundColor3 = Colors.bg
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
+    main.Parent = screenGui
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 20)
+    spawnSpookyParticles(main, 15, {5, 10})
+    
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 55)
+    header.BackgroundColor3 = Colors.sidebar
+    header.BorderSizePixel = 0
+    header.Parent = main
+    Instance.new("UICorner", header).CornerRadius = UDim.new(0, 20)
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 0, 30)
+    title.Position = UDim2.new(0, 20, 0, 12)
+    title.BackgroundTransparency = 1
+    title.RichText = true
+    title.Text = "🎃 <font color='#ff6400'>ERDN</font> <font color='#9b30ff'>PRIVATE SCRIPT</font> 🦇"
+    title.TextColor3 = Colors.white
+    title.TextSize = 16
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+
+    local minimizeBtn = Instance.new("TextButton")
+    minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+    minimizeBtn.Position = UDim2.new(1, -40, 0, 12)
+    minimizeBtn.BackgroundColor3 = Colors.accent
+    minimizeBtn.Text = "−"
+    minimizeBtn.TextColor3 = Colors.bg
+    minimizeBtn.TextSize = 18
+    minimizeBtn.Font = Enum.Font.GothamBold
+    minimizeBtn.Parent = header
+    Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(1, 0)
+
+    local sidebar = Instance.new("Frame")
+    sidebar.Size = UDim2.new(0, 150, 1, -75)
+    sidebar.Position = UDim2.new(0, 12, 0, 65)
+    sidebar.BackgroundColor3 = Colors.sidebar
+    sidebar.BorderSizePixel = 0
+    sidebar.Parent = main
+    Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 14)
+
+    local tabList = Instance.new("UIListLayout")
+    tabList.Padding = UDim.new(0, 6)
+    tabList.SortOrder = Enum.SortOrder.LayoutOrder
+    tabList.Parent = sidebar
+    Instance.new("UIPadding", sidebar).PaddingTop = UDim.new(0, 10)
+
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, -180, 1, -75)
+    content.Position = UDim2.new(0, 170, 0, 65)
+    content.BackgroundColor3 = Colors.panel
+    content.BorderSizePixel = 0
+    content.Parent = main
+    Instance.new("UICorner", content).CornerRadius = UDim.new(0, 14)
+
+    local pages = {}
+    local function switchTab(name)
+        for n, frame in pairs(pages) do frame.Visible = (n == name) end
+    end
+
+    local tabs = {
+        {name = "Farm", icon = "🎃"},
+        {name = "Recursos", icon = "💎"},
+        {name = "Combate", icon = "⚔️"},
+        {name = "Utilidades", icon = "🦇"},
+    }
+
+    for _, tab in ipairs(tabs) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -20, 0, 40)
+        btn.BackgroundColor3 = Colors.panel
+        btn.BackgroundTransparency = 0.5
+        btn.BorderSizePixel = 0
+        btn.Text = "  " .. tab.icon .. "  " .. tab.name
+        btn.TextColor3 = Colors.text
+        btn.TextSize = 13
+        btn.Font = Enum.Font.GothamBold
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = sidebar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+        local page = Instance.new("ScrollingFrame")
+        page.Size = UDim2.new(1, -20, 1, -20)
+        page.Position = UDim2.new(0, 10, 0, 10)
+        page.BackgroundTransparency = 1
+        page.BorderSizePixel = 0
+        page.Visible = false
+        page.CanvasSize = UDim2.new(0, 0, 0, 0)
+        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.Parent = content
+        pages[tab.name] = page
+
+        local layout = Instance.new("UIListLayout")
+        layout.Padding = UDim.new(0, 8)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Parent = page
+
+        btn.MouseButton1Click:Connect(function()
+            switchTab(tab.name)
+            for _, b in ipairs(sidebar:GetChildren()) do
+                if b:IsA("TextButton") then
+                    b.BackgroundColor3 = (b == btn) and Colors.accent or Colors.panel
+                    b.TextColor3 = (b == btn) and Colors.bg or Colors.text
+                end
+            end
+        end)
+    end
+
+    local function createToggle(parent, text, callback)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -10, 0, 52)
+        frame.BackgroundColor3 = Colors.sidebar
+        frame.BorderSizePixel = 0
+        frame.Parent = parent
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -60, 1, 0)
+        label.Position = UDim2.new(0, 14, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Colors.text
+        label.TextSize = 12
+        label.Font = Enum.Font.GothamBold
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+
+        local toggle = Instance.new("TextButton")
+        toggle.Size = UDim2.new(0, 44, 0, 24)
+        toggle.Position = UDim2.new(1, -56, 0.5, -12)
+        toggle.BackgroundColor3 = Colors.bg
+        toggle.Text = ""
+        toggle.Parent = frame
+        Instance.new("UICorner", toggle).CornerRadius = UDim.new(1, 0)
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, 18, 0, 18)
+        knob.Position = UDim2.new(0, 3, 0.5, -9)
+        knob.BackgroundColor3 = Colors.textDim
+        knob.Parent = toggle
+        Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+        local state = false
+        local toggleObj = {
+            set = function(newState, invoke)
+                state = newState
+                TweenService:Create(toggle, TweenInfo.new(0.25), {BackgroundColor3 = state and Colors.accent or Colors.bg}):Play()
+                TweenService:Create(knob, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9), BackgroundColor3 = state and Colors.white or Colors.textDim}):Play()
+                if invoke and callback then callback(state) end
+            end
+        }
+        toggle.MouseButton1Click:Connect(function() toggleObj.set(not state, true); createSparkle(frame, UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y) end)
+        return toggleObj
+    end
+
+    -- Pestaña Farm
+    local farmPage = pages["Farm"]
+    createToggle(farmPage, "Ultra Fast Rep (10k/s)", function(v) if v then startFastRep(10000) else stopFastRep() end end)
+    createToggle(farmPage, "Auto Punch", function(v) if v then startAutoPunch() else stopAutoPunch() end end)
+    createToggle(farmPage, "Auto Farm Strength", function(v) State.AutoFarmStrength = v; if v then startAutoFarmStrength() end end)
+    createToggle(farmPage, "Auto Rebirth", function(v) State.AutoRebirth = v; if v then startAutoRebirth() end end)
+    createToggle(farmPage, "Auto Treadmill", function(v) State.AutoTreadmill = v end)
+    createToggle(farmPage, "Auto Farm Boss", function(v) State.AutoFarmBoss = v; if v then startAutoFarmBoss() else stopAutoPunch() end end)
+
+    -- Pestaña Recursos
+    local resourcePage = pages["Recursos"]
+    createToggle(resourcePage, "Auto Hatch Eggs", function(v) State.AutoHatch = v; if v then startAutoHatch() end end)
+    createToggle(resourcePage, "Auto Equip Best Pets", function(v) State.AutoEquipBestPets = v; if v then startAutoEquipBestPets() end end)
+    createToggle(resourcePage, "Auto Buy Ultimates", function(v) State.AutoBuyUltimates = v end)
+    createToggle(resourcePage, "Auto Buy Auras", function(v) State.AutoBuyAuras = v end)
+    createToggle(resourcePage, "Auto Claim Chests", function(v) State.AutoClaimChests = v end)
+    createToggle(resourcePage, "Auto Fortune Wheel", function(v) State.AutoFortuneWheel = v end)
+
+    -- Pestaña Combate
+    local combatPage = pages["Combate"]
+    createToggle(combatPage, "Kill Aura", function(v) State.KillAura = v; if v then startKillAura() end end)
+    createToggle(combatPage, "Auto Join Brawl", function(v) State.AutoJoinBrawl = v end)
+    createToggle(combatPage, "Auto Win Brawl", function(v) State.AutoWinBrawl = v end)
+
+    -- Pestaña Utilidades
+    local utilPage = pages["Utilidades"]
+    createToggle(utilPage, "ESP (Players)", function(v) State.ESP = v; toggleESP(v) end)
+    createToggle(utilPage, "Noclip", function(v) State.Noclip = v end)
+    createToggle(utilPage, "Fly (WASD)", function(v) toggleFly(v) end)
+    createToggle(utilPage, "Anti-Fling", function(v) State.AntiFling = v end)
+    createToggle(utilPage, "Anti-Knockback", function(v) State.AntiKnockback = v end)
+    createToggle(utilPage, "Walk on Water", function(v) State.WalkOnWater = v end)
+    createToggle(utilPage, "Anti-AFK", function(v) toggleAntiAfk(v) end)
+    createToggle(utilPage, "FPS Boost", function(v) toggleFPSBoost(v) end)
+
+    switchTab("Farm")
+
+    local minimized = false
+    local floatBtn = nil
+    local function minimize()
+        if minimized then return end
+        minimized = true
+        main.Visible = false
+        floatBtn = Instance.new("TextButton")
+        floatBtn.Size = UDim2.new(0, 54, 0, 54)
+        floatBtn.Position = UDim2.new(0, 20, 0.5, -27)
+        floatBtn.BackgroundColor3 = Colors.accent
+        floatBtn.Text = "🎃"
+        floatBtn.TextSize = 24
+        floatBtn.Font = Enum.Font.GothamBold
+        floatBtn.TextColor3 = Colors.bg
+        floatBtn.Parent = screenGui
+        Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(1, 0)
+        floatBtn.MouseButton1Click:Connect(function()
+            minimized = false
+            floatBtn:Destroy()
+            main.Visible = true
+        end)
+    end
+    minimizeBtn.MouseButton1Click:Connect(minimize)
+end
+
+verifyBtn.MouseButton1Click:Connect(function()
+    if keyInput.Text == KEY then
+        playSplashAnimation(buildMainUI)
+    else
+        keyInput.Text = ""
+        keyInput.PlaceholderText = "Invalid Private Key"
+        keyInput.PlaceholderColor3 = Colors.danger
+    end
+end)
