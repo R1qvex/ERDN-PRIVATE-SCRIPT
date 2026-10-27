@@ -1,8 +1,26 @@
 --[[
-    R1QVEX PRIVATE SCRIPT | Muscle Legends (Stealth Fast Rep)
-    - Fast Reps exactos: 500, 2000 y 5000 por segundo (Límite eliminado).
-    - Anti-Anomalía: Bloquea los Kick por "Suspicious Activity" o "Spam".
-    - Durability Tracker intacto.
+    ================================================================================
+    R1QVEX PRIVATE SCRIPT | Muscle Legends
+    ================================================================================
+    🔑 KEY: R1QTHEKING
+    
+    📌 DESCRIPTION:
+    Advanced stats tracking and farming system for Muscle Legends. Features 
+    an ultra-fast, ping-optimized Fast Rep system, Auto Rebirth, Auto Farm Boss, 
+    and a highly accurate Durability Tracker that calculates real-time gains 
+    without including pre-existing stats.
+
+    ⚡ FEATURES:
+    - Fast Rep optimized with Delta-Time (No Ping Spikes / 0 Lag).
+    - Exact Rep Limits: 500, 2,000, and 5,000 reps/second.
+    - Anti-Kick & Anti-Anomaly (Bypasses server kicks for suspicious activity).
+    - Durability Tracker (Real-time /sec, /min, /hour projections).
+    - Auto Rebirth, Auto Boss Farm, Kill Aura.
+    - Utilities: Fly, ESP, Anti-AFK, FPS Boost.
+    
+    ⚠️ DISCLAIMER: 
+    Use at your own risk. This script is for educational purposes.
+    ================================================================================
 ]]
 
 local Players = game:GetService("Players")
@@ -18,16 +36,14 @@ local KEY = "R1QTHEKING"
 
 --==================== ANTI-DETECCIÓN Y ANTI-KICK ====================
 pcall(function()
-    -- 1. Hook para bloquear Kick
     local mt = getrawmetatable(game)
     setreadonly(mt, false)
     local oldNamecall = mt.__namecall
     
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        local args = {...}
         
-        -- Bloquear intentos de Kick y Shutdown
+        -- Bloquea intentos de Kick y Shutdown
         if (method == "Kick" and self == player) or (method == "Shutdown" and self == game) then
             return
         end
@@ -36,7 +52,7 @@ pcall(function()
     end)
     setreadonly(mt, true)
 
-    -- 2. Bloquear función Kick directa
+    -- Bloquea la función Kick directa
     local oldKick = player.Kick
     player.Kick = function(self, reason) 
         print("[ANTI-BAN] Kick bloqueado. Razón: ", tostring(reason))
@@ -171,7 +187,7 @@ local function stopFastRep()
     if fastRepThread then task.cancel(fastRepThread); fastRepThread = nil end
 end
 
--- NUEVO SISTEMA DE FAST REP EXACTO Y SIGILOSO
+-- SISTEMA DE FAST REP SIN PING (Frame-Accurate)
 local function startFastRep(repsPerSecond)
     if not State.FastRep then
         local stats = getPlayerStats()
@@ -189,10 +205,8 @@ local function startFastRep(repsPerSecond)
 
     fastRepThread = task.spawn(function()
         local cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
-        
-        -- Calculamos cuántos reps enviar por cada ciclo para alcanzar el objetivo exacto
-        -- Hacemos 20 ciclos por segundo (cada 0.05s)
-        local batchSize = math.ceil(repsPerSecond / 20) 
+        local accumulatedReps = 0
+        local lastTime = tick()
         
         while State.FastRep do
             if not cachedEvent or not cachedEvent.Parent then
@@ -200,18 +214,24 @@ local function startFastRep(repsPerSecond)
             end
             
             if cachedEvent then
-                -- Enviamos el lote exacto de reps
-                for i = 1, batchSize do
+                local currentTime = tick()
+                local deltaTime = currentTime - lastTime
+                lastTime = currentTime
+                
+                accumulatedReps = accumulatedReps + (repsPerSecond * deltaTime)
+                local repsToSend = math.floor(accumulatedReps)
+                
+                if repsToSend > 0 then
+                    accumulatedReps = accumulatedReps - repsToSend
+                    local fireServer = cachedEvent.FireServer
                     pcall(function()
-                        cachedEvent:FireServer("rep")
+                        for i = 1, repsToSend do
+                            fireServer(cachedEvent, "rep")
+                        end
                     end)
                 end
             end
-            
-            -- Delay de 0.05 segundos (20 veces por segundo)
-            -- Esto da exactamente 500, 2000 o 5000 reps por segundo sin saturar el servidor
-            RunService.Heartbeat:Wait() 
-            task.wait(0.01) 
+            RunService.Heartbeat:Wait()
         end
     end)
 end
@@ -625,7 +645,7 @@ local function buildMenu()
         end)
     end
 
-    -- Farm Tab (Actualizado sin 10k y con 5k exactos)
+    -- Farm Tab
     createToggle(pages["Farm"], "Max Rep (5,000/s)", function(v) if v then startFastRep(5000) else stopFastRep() end end)
     createToggle(pages["Farm"], "Mega Rep (2,000/s)", function(v) if v then startFastRep(2000) else stopFastRep() end end)
     createToggle(pages["Farm"], "Fast Rep (500/s)", function(v) if v then startFastRep(500) else stopFastRep() end end)
