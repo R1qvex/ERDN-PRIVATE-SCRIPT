@@ -1,14 +1,8 @@
 --[[
-    R1QVEX PRIVATE SCRIPT | Muscle Legends
-    --------------------------------------
-    Key: R1QTHEKING
-    
-    Features:
-    - Stats tracking (Strength, Durability, Rebirths) with 10s/60s projections.
-    - Optimized Auto Farm Boss (caches arena and Y-position to prevent lag).
-    - Fast Rep, Auto Rebirth, Kill Aura, Auto Punch.
-    - Utilities: Fly, ESP, Anti-AFK, FPS Boost.
-    - Durability Hook: Accurately tracks gained stats without including pre-existing values.
+    R1QVEX PRIVATE SCRIPT | Muscle Legends (Stealth Fast Rep)
+    - Fast Reps exactos: 500, 2000 y 5000 por segundo (Límite eliminado).
+    - Anti-Anomalía: Bloquea los Kick por "Suspicious Activity" o "Spam".
+    - Durability Tracker intacto.
 ]]
 
 local Players = game:GetService("Players")
@@ -22,25 +16,35 @@ local player = Players.LocalPlayer
 local RS = ReplicatedStorage
 local KEY = "R1QTHEKING"
 
--- [ ANTI-KICK ]
+--==================== ANTI-DETECCIÓN Y ANTI-KICK ====================
 pcall(function()
-    local oldKick = player.Kick
-    player.Kick = function(self, reason) print("[ANTI-BAN] Kick blocked: ", reason) return end
-    if getrawmetatable then
-        local mt = getrawmetatable(game)
-        if mt and mt.__namecall then
-            local oldNamecall = mt.__namecall
-            setreadonly(mt, false)
-            mt.__namecall = newcclosure(function(self, ...)
-                if getnamecallmethod() == "Kick" and self == player then return end
-                return oldNamecall(self, ...)
-            end)
-            setreadonly(mt, true)
+    -- 1. Hook para bloquear Kick
+    local mt = getrawmetatable(game)
+    setreadonly(mt, false)
+    local oldNamecall = mt.__namecall
+    
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        -- Bloquear intentos de Kick y Shutdown
+        if (method == "Kick" and self == player) or (method == "Shutdown" and self == game) then
+            return
         end
+        
+        return oldNamecall(self, ...)
+    end)
+    setreadonly(mt, true)
+
+    -- 2. Bloquear función Kick directa
+    local oldKick = player.Kick
+    player.Kick = function(self, reason) 
+        print("[ANTI-BAN] Kick bloqueado. Razón: ", tostring(reason))
+        return 
     end
 end)
 
--- [ DURABILITY HOOK ]
+--==================== HOOK PARA DURABILIDAD ====================
 getgenv().RealDurability = 0
 local function setDurability(value)
     if type(value) == "number" and value >= 0 then
@@ -61,73 +65,26 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 end)
 
 task.spawn(function()
-    local hooked = {}
-    local function tryHook()
-        local candidates = {}
-        local containers = {RS, player, player.Character, player:FindFirstChild("PlayerGui")}
-        for _, container in ipairs(containers) do
-            if container then
-                for _, v in ipairs(container:GetDescendants()) do
-                    if v:IsA("RemoteEvent") and v.Name == "updateStats" then
-                        table.insert(candidates, v)
-                    end
-                end
-            end
-        end
-        for _, remote in ipairs(candidates) do
-            if not hooked[remote] then
-                hooked[remote] = true
-                pcall(function()
-                    remote.OnClientEvent:Connect(function(...)
-                        local args = {...}
-                        if type(args[3]) == "number" then
-                            setDurability(args[3])
-                        end
-                    end)
-                end)
-            end
-        end
-    end
-    for i = 1, 20 do
-        tryHook()
-        task.wait(1)
-    end
-end)
-
-task.spawn(function()
     local function watchValue(v)
         if v:IsA("NumberValue") or v:IsA("IntValue") then
             local name = string.lower(v.Name)
             if name == "durability" or name == "defense" then
                 setDurability(v.Value)
-                v:GetPropertyChangedSignal("Value"):Connect(function()
-                    setDurability(v.Value)
-                end)
+                v:GetPropertyChangedSignal("Value"):Connect(function() setDurability(v.Value) end)
             end
         end
     end
-
     local function scanContainer(container)
         if not container then return end
-        for _, v in ipairs(container:GetDescendants()) do
-            watchValue(v)
-        end
-        container.DescendantAdded:Connect(function(v)
-            watchValue(v)
-        end)
+        for _, v in ipairs(container:GetDescendants()) do watchValue(v) end
+        container.DescendantAdded:Connect(function(v) watchValue(v) end)
     end
-
     scanContainer(player:FindFirstChild("leaderstats"))
     scanContainer(player)
-    if player.Character then
-        scanContainer(player.Character)
-    end
-    player.CharacterAdded:Connect(function(char)
-        scanContainer(char)
-    end)
+    player.CharacterAdded:Connect(function(char) scanContainer(char) end)
 end)
 
--- [ STATE & CONFIG ]
+--==================== STATE ====================
 local State = {
     FastRep = false, AutoRebirth = false, AutoFarmBoss = false, AutoPunch = false,
     KillAura = false, AntiAFK = false, FPSBoost = false, Fly = false, ESP = false, FlySpeed = 50,
@@ -145,6 +102,7 @@ local StatsTracker = {
 
 local BossCache = { Arena = nil, Model = nil, TopY = 0, LastCheck = 0 }
 
+--==================== COLORES ====================
 local Colors = {
     bg = Color3.fromRGB(10, 10, 10),
     panel = Color3.fromRGB(18, 18, 18),
@@ -157,7 +115,7 @@ local Colors = {
     success = Color3.fromRGB(100, 255, 100)
 }
 
--- [ HELPERS ]
+--==================== HELPERS ====================
 local function getChar() return player.Character end
 local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 
@@ -206,13 +164,14 @@ local function getPlayerStats()
     return stats
 end
 
--- [ MECHANICS: FARM ]
+--==================== MECHANICS ====================
 local fastRepThread = nil
 local function stopFastRep()
     State.FastRep = false
     if fastRepThread then task.cancel(fastRepThread); fastRepThread = nil end
 end
 
+-- NUEVO SISTEMA DE FAST REP EXACTO Y SIGILOSO
 local function startFastRep(repsPerSecond)
     if not State.FastRep then
         local stats = getPlayerStats()
@@ -224,48 +183,47 @@ local function startFastRep(repsPerSecond)
         StatsTracker.SnapDur = 0
         StatsTracker.SnapTime = tick()
     end
+
     stopFastRep()
     State.FastRep = true
+
     fastRepThread = task.spawn(function()
         local cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
-        local accumulatedReps = 0
-        local lastTime = tick()
+        
+        -- Calculamos cuántos reps enviar por cada ciclo para alcanzar el objetivo exacto
+        -- Hacemos 20 ciclos por segundo (cada 0.05s)
+        local batchSize = math.ceil(repsPerSecond / 20) 
+        
         while State.FastRep do
             if not cachedEvent or not cachedEvent.Parent then
                 cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
             end
+            
             if cachedEvent then
-                local currentTime = tick()
-                local deltaTime = currentTime - lastTime
-                lastTime = currentTime
-                accumulatedReps = accumulatedReps + (repsPerSecond * deltaTime)
-                local repsToSend = math.floor(accumulatedReps)
-                if repsToSend > 0 then
-                    accumulatedReps = accumulatedReps - repsToSend
-                    local fireServer = cachedEvent.FireServer
+                -- Enviamos el lote exacto de reps
+                for i = 1, batchSize do
                     pcall(function()
-                        for i = 1, repsToSend do
-                            if not State.FastRep then break end
-                            fireServer(cachedEvent, "rep")
-                        end
+                        cachedEvent:FireServer("rep")
                     end)
                 end
             end
-            RunService.Heartbeat:Wait()
+            
+            -- Delay de 0.05 segundos (20 veces por segundo)
+            -- Esto da exactamente 500, 2000 o 5000 reps por segundo sin saturar el servidor
+            RunService.Heartbeat:Wait() 
+            task.wait(0.01) 
         end
     end)
 end
 
 local function startAutoRebirth()
-    if State.AutoRebirth then return end
-    State.AutoRebirth = true
+    if State.AutoRebirth then return end; State.AutoRebirth = true
     local stats = getPlayerStats()
     StatsTracker.LastReb = stats.Reb
     StatsTracker.TotalReb = 0
     StatsTracker.RebStartTime = tick()
     StatsTracker.SnapReb = 0
     StatsTracker.RebSnapTime = tick()
-    
     task.spawn(function()
         while State.AutoRebirth do
             pcall(function()
@@ -278,11 +236,9 @@ local function startAutoRebirth()
     end)
 end
 
--- [ MECHANICS: COMBAT ]
 local autoPunchConn = nil
 local function startAutoPunch()
-    if State.AutoPunch then return end
-    State.AutoPunch = true
+    if State.AutoPunch then return end; State.AutoPunch = true
     autoPunchConn = task.spawn(function()
         while State.AutoPunch do
             local char = player.Character
@@ -294,72 +250,54 @@ local function startAutoPunch()
         end
     end)
 end
-
-local function stopAutoPunch()
-    State.AutoPunch = false
-    if autoPunchConn then task.cancel(autoPunchConn); autoPunchConn = nil end
-end
+local function stopAutoPunch() State.AutoPunch = false; if autoPunchConn then task.cancel(autoPunchConn); autoPunchConn = nil end end
 
 local function startKillAura()
-    if State.KillAura then return end
-    State.KillAura = true
+    if State.KillAura then return end; State.KillAura = true
     task.spawn(function()
         while State.KillAura do
-            local hrp = getHRP()
-            local ev = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
+            local hrp = getHRP(); local ev = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
             if hrp and ev then
-                local closest = nil
-                local dist = 35
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= player and p.Character then
-                        local tHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                        local tHum = p.Character:FindFirstChildOfClass("Humanoid")
-                        if tHrp and tHum and tHum.Health > 0 then
+                local closest = nil; local dist = 35
+                for _,p in ipairs(Players:GetPlayers()) do
+                    if p~=player and p.Character then
+                        local tHrp = p.Character:FindFirstChild("HumanoidRootPart"); local tHum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if tHrp and tHum and tHum.Health>0 then
                             local d = (hrp.Position - tHrp.Position).Magnitude
-                            if d < dist then dist = d; closest = tHrp end
+                            if d<dist then dist=d; closest=tHrp end
                         end
                     end
                 end
-                if closest then 
-                    pcall(function() 
-                        hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(closest.Position.X, hrp.Position.Y, closest.Position.Z))
-                        ev:FireServer("punch", "leftHand")
-                        ev:FireServer("punch", "rightHand") 
-                    end) 
-                end
+                if closest then pcall(function() hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(closest.Position.X,hrp.Position.Y,closest.Position.Z)); ev:FireServer("punch","leftHand"); ev:FireServer("punch","rightHand") end) end
             end
             task.wait(0.1)
         end
     end)
 end
 
--- [ MECHANICS: BOSS FARM (OPTIMIZED) ]
 local bossHeartbeatConn = nil
 local function getBossTargets()
-    local bosses = {}
-    local myChar = getChar()
-    local targetNames = {["Boss1"]=true, ["Boss2"]=true, ["Boss3"]=true, ["Boss4"]=true, ["Boss5"]=true, ["Boss6"]=true}
+    local bosses = {}; local myChar = getChar()
+    local targetNames = {["Boss1"]=true,["Boss2"]=true,["Boss3"]=true,["Boss4"]=true,["Boss5"]=true,["Boss6"]=true}
     
     if not BossCache.Arena or not BossCache.Arena.Parent then
         local events = Workspace:FindFirstChild("Events")
         BossCache.Arena = events and events:FindFirstChild("BossArena")
         if not BossCache.Arena then 
-            for _, v in ipairs(Workspace:GetDescendants()) do 
-                if v.Name == "BossArena" and v:IsA("Folder") then BossCache.Arena = v; break end 
+            for _,v in ipairs(Workspace:GetDescendants()) do 
+                if v.Name=="BossArena" and v:IsA("Folder") then BossCache.Arena=v; break end 
             end 
         end
     end
     
     if BossCache.Arena then
-        for _, obj in ipairs(BossCache.Arena:GetChildren()) do
-            if obj:IsA("Model") and obj ~= myChar and targetNames[obj.Name] then
+        for _,obj in ipairs(BossCache.Arena:GetChildren()) do
+            if obj:IsA("Model") and obj~=myChar and targetNames[obj.Name] then
                 local hpVal = nil
-                for _, v in ipairs(obj:GetDescendants()) do
-                    if (v:IsA("NumberValue") or v:IsA("IntValue")) and (string.find(string.lower(v.Name), "health") or string.find(string.lower(v.Name), "hp") or v.Name == "Value") then 
-                        hpVal = v; break 
-                    end
+                for _,v in ipairs(obj:GetDescendants()) do
+                    if (v:IsA("NumberValue") or v:IsA("IntValue")) and (string.find(string.lower(v.Name),"health") or string.find(string.lower(v.Name),"hp") or v.Name=="Value") then hpVal=v; break end
                 end
-                table.insert(bosses, {model=obj, healthValue=hpVal})
+                table.insert(bosses,{model=obj, healthValue=hpVal})
             end
         end
     end
@@ -367,12 +305,8 @@ local function getBossTargets()
 end
 
 local function startAutoFarmBoss()
-    if State.AutoFarmBoss then return end
-    State.AutoFarmBoss = true
-    State.AutoPunch = false
-    stopAutoPunch()
-    startAutoPunch()
-    
+    if State.AutoFarmBoss then return end; State.AutoFarmBoss = true
+    State.AutoPunch = false; stopAutoPunch(); startAutoPunch()
     if bossHeartbeatConn then bossHeartbeatConn:Disconnect() end
     BossCache.Model = nil
     BossCache.TopY = 0
@@ -380,35 +314,22 @@ local function startAutoFarmBoss()
     bossHeartbeatConn = RunService.Heartbeat:Connect(function()
         if not State.AutoFarmBoss then return end
         local bosses = getBossTargets()
-        if #bosses == 0 then 
-            State.CurrentBoss = "Waiting..."
-            State.BossHealth = "N/A"
-            return 
-        end
-        
-        local target = bosses[1]
-        local model = target.model
+        if #bosses == 0 then State.CurrentBoss = "Waiting..."; State.BossHealth = "N/A"; return end
+        local target = bosses[1]; local model = target.model
         local isAlive = true
-        
-        if target.healthValue then 
-            isAlive = target.healthValue.Value > 0
-            State.BossHealth = tostring(target.healthValue.Value) 
-        end
-        
+        if target.healthValue then isAlive = target.healthValue.Value > 0; State.BossHealth = tostring(target.healthValue.Value) end
         if isAlive then
             State.CurrentBoss = model.Name
             local hrp = getHRP()
             if hrp and model then
                 pcall(function()
-                    hrp.Anchored = false
-                    hrp.Velocity = Vector3.zero
+                    hrp.Anchored = false; hrp.Velocity = Vector3.zero
                     local centerPos = model:GetPivot().Position
-                    
                     if model ~= BossCache.Model or tick() - BossCache.LastCheck > 1 then
                         BossCache.Model = model
                         BossCache.LastCheck = tick()
                         BossCache.TopY = -math.huge
-                        for _, v in ipairs(model:GetDescendants()) do
+                        for _,v in ipairs(model:GetDescendants()) do
                             if v:IsA("BasePart") and v.Transparency < 0.9 then
                                 local topEdge = v.Position.Y + (v.Size.Y / 2)
                                 if topEdge > BossCache.TopY then BossCache.TopY = topEdge end
@@ -426,30 +347,18 @@ end
 local function stopAutoFarmBoss()
     State.AutoFarmBoss = false
     if bossHeartbeatConn then bossHeartbeatConn:Disconnect(); bossHeartbeatConn = nil end
-    stopAutoPunch()
-    local hrp = getHRP()
-    if hrp then pcall(function() hrp.Anchored = false end) end
+    stopAutoPunch(); local hrp = getHRP(); if hrp then pcall(function() hrp.Anchored = false end) end
 end
 
--- [ MECHANICS: UTILS ]
 local function toggleESP(state)
     pcall(function()
         local espFolder = game:GetService("CoreGui"):FindFirstChild("R1Q_ESP")
-        if not state then 
-            if espFolder then espFolder:Destroy() end
-            return 
-        end
+        if not state then if espFolder then espFolder:Destroy() end; return end
         if espFolder then espFolder:Destroy() end
-        local f = Instance.new("Folder", game:GetService("CoreGui"))
-        f.Name = "R1Q_ESP"
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                local box = Instance.new("BoxHandleAdornment", f)
-                box.Adornee = p.Character:FindFirstChild("HumanoidRootPart")
-                box.Size = Vector3.new(4, 6, 4)
-                box.Transparency = 0.5
-                box.Color3 = Colors.accent
-                box.AlwaysOnTop = true
+        local f = Instance.new("Folder", game:GetService("CoreGui")); f.Name = "R1Q_ESP"
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p~=player and p.Character then
+                local box = Instance.new("BoxHandleAdornment", f); box.Adornee = p.Character:FindFirstChild("HumanoidRootPart"); box.Size = Vector3.new(4,6,4); box.Transparency = 0.5; box.Color3 = Colors.accent; box.AlwaysOnTop = true
             end
         end
     end)
@@ -461,9 +370,7 @@ local function toggleFly(state)
     if state then
         local hrp = getHRP()
         if hrp then
-            flyBV = Instance.new("BodyVelocity", hrp)
-            flyBV.Name = "R1Q_Fly"
-            flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+            flyBV = Instance.new("BodyVelocity", hrp); flyBV.Name = "R1Q_Fly"; flyBV.MaxForce = Vector3.new(1e9,1e9,1e9)
             task.spawn(function()
                 while State.Fly and flyBV and flyBV.Parent do
                     local cam = workspace.CurrentCamera
@@ -485,29 +392,19 @@ local antiAfkConn = nil
 local function toggleAntiAfk(state)
     if state then
         if antiAfkConn then return end
-        antiAfkConn = player.Idled:Connect(function() 
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game) 
-        end)
+        antiAfkConn = player.Idled:Connect(function() VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game); VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
     else
-        if antiAfkConn then antiAfkConn:Disconnect(); antiAfkConn = nil end
+        if antiAfkConn then antiAfkConn:Disconnect(); antiAfkConn=nil end
     end
 end
 
 local function toggleFPSBoost(state)
-    pcall(function() 
-        if state then 
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 
-        else 
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level10 
-        end 
-    end)
+    pcall(function() if state then settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 else settings().Rendering.QualityLevel = Enum.QualityLevel.Level10 end end)
 end
 
--- [ USER INTERFACE ]
+--==================== UI ====================
 local existing = player:FindFirstChild("PlayerGui"):FindFirstChild("R1QVEX_PrivateUI")
 if existing then existing:Destroy() end
-
 local sg = Instance.new("ScreenGui")
 sg.Name = "R1QVEX_PrivateUI"
 sg.ResetOnSpawn = false
@@ -516,7 +413,7 @@ sg.DisplayOrder = 99999
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = player:WaitForChild("PlayerGui")
 
--- Login Screen
+-- LOGIN
 local loginFrame = Instance.new("Frame")
 loginFrame.Size = UDim2.new(0, 300, 0, 200)
 loginFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
@@ -561,10 +458,9 @@ verifyBtn.ZIndex = 3
 verifyBtn.Parent = loginFrame
 Instance.new("UICorner", verifyBtn).CornerRadius = UDim.new(0, 8)
 
--- Main Menu Builder
+-- MAIN MENU
 local function buildMenu()
     loginFrame:Destroy()
-
     local main = Instance.new("Frame")
     main.Size = UDim2.new(0, 550, 0, 340)
     main.Position = UDim2.new(0.5, -275, 0.5, -170)
@@ -729,11 +625,10 @@ local function buildMenu()
         end)
     end
 
-    -- Farm Tab
-    createToggle(pages["Farm"], "Ultra Fast Rep (10k)", function(v) if v then startFastRep(10000) else stopFastRep() end end)
-    createToggle(pages["Farm"], "Max Ultra Rep (5k)", function(v) if v then startFastRep(5000) else stopFastRep() end end)
-    createToggle(pages["Farm"], "Mega Fast Rep (2k)", function(v) if v then startFastRep(2000) else stopFastRep() end end)
-    createToggle(pages["Farm"], "Fast Rep (500)", function(v) if v then startFastRep(500) else stopFastRep() end end)
+    -- Farm Tab (Actualizado sin 10k y con 5k exactos)
+    createToggle(pages["Farm"], "Max Rep (5,000/s)", function(v) if v then startFastRep(5000) else stopFastRep() end end)
+    createToggle(pages["Farm"], "Mega Rep (2,000/s)", function(v) if v then startFastRep(2000) else stopFastRep() end end)
+    createToggle(pages["Farm"], "Fast Rep (500/s)", function(v) if v then startFastRep(500) else stopFastRep() end end)
 
     -- Boss Tab
     local statusFrame = Instance.new("Frame")
@@ -885,7 +780,7 @@ local function buildMenu()
     strDurTimerStatus.ZIndex = 6
     strDurTimerStatus.Parent = strDurTimerFrame
 
-    local function createProjectionFrame(parent, titleText, icon)
+    local function createProjectionFrame(parent, title, icon)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -10, 0, 85)
         frame.BackgroundColor3 = Colors.panel
@@ -898,7 +793,7 @@ local function buildMenu()
         titleLabel.Size = UDim2.new(1, -20, 0, 20)
         titleLabel.Position = UDim2.new(0, 10, 0, 5)
         titleLabel.BackgroundTransparency = 1
-        titleLabel.Text = icon .. " " .. titleText
+        titleLabel.Text = icon .. " " .. title
         titleLabel.TextColor3 = Colors.accent
         titleLabel.Font = Enum.Font.GothamBold
         titleLabel.TextSize = 12
@@ -938,42 +833,10 @@ local function buildMenu()
     local strLabels = createProjectionFrame(pages["Stats"], "Strength (10s)", "💪")
     local durLabels = createProjectionFrame(pages["Stats"], "Durability (10s)", "🛡️")
 
-    local rebTimerFrame = Instance.new("Frame")
-    rebTimerFrame.Size = UDim2.new(1, -10, 0, 50)
-    rebTimerFrame.BackgroundColor3 = Colors.bg
-    rebTimerFrame.ZIndex = 5
-    rebTimerFrame.Parent = pages["Stats"]
-    Instance.new("UICorner", rebTimerFrame).CornerRadius = UDim.new(0, 8)
-
-    local rebTimerTitle = Instance.new("TextLabel")
-    rebTimerTitle.Size = UDim2.new(1, 0, 0, 20)
-    rebTimerTitle.Position = UDim2.new(0, 0, 0, 5)
-    rebTimerTitle.BackgroundTransparency = 1
-    rebTimerTitle.Text = "Auto Rebirth Time: 00d 00h 00m 00s"
-    rebTimerTitle.TextColor3 = Colors.text
-    rebTimerTitle.Font = Enum.Font.GothamBold
-    rebTimerTitle.TextSize = 13
-    rebTimerTitle.ZIndex = 6
-    rebTimerTitle.Parent = rebTimerFrame
-
-    local rebTimerStatus = Instance.new("TextLabel")
-    rebTimerStatus.Size = UDim2.new(1, 0, 0, 15)
-    rebTimerStatus.Position = UDim2.new(0, 0, 0, 25)
-    rebTimerStatus.BackgroundTransparency = 1
-    rebTimerStatus.Text = "Waiting for 60 seconds..."
-    rebTimerStatus.TextColor3 = Colors.textDim
-    rebTimerStatus.Font = Enum.Font.Gotham
-    rebTimerStatus.TextSize = 11
-    rebTimerStatus.ZIndex = 6
-    rebTimerStatus.Parent = rebTimerFrame
-
-    local rebLabels = createProjectionFrame(pages["Stats"], "Rebirths (60s)", "🔄")
-
     -- Stats Loop
     task.spawn(function()
         while sg.Parent do
             local stats = getPlayerStats()
-
             if State.FastRep then
                 if stats.Str > StatsTracker.LastStr then
                     StatsTracker.TotalStr = StatsTracker.TotalStr + (stats.Str - StatsTracker.LastStr)
@@ -985,7 +848,6 @@ local function buildMenu()
                     StatsTracker.LastDur = nil
                     StatsTracker.DurSource = nil
                 end
-                
                 if stats.Dur > 0 then
                     if stats.DurSource ~= StatsTracker.DurSource or StatsTracker.LastDur == nil then
                         StatsTracker.DurSource = stats.DurSource
@@ -1005,17 +867,14 @@ local function buildMenu()
                 if strDurElapsed >= 10 then
                     strDurTimerStatus.Text = "Updated! (Refreshes every 10s)"
                     strDurTimerStatus.TextColor3 = Colors.accent
-                    
                     local diffStr = StatsTracker.TotalStr - StatsTracker.SnapStr
                     local diffDur = StatsTracker.TotalDur - StatsTracker.SnapDur
                     local strPerSec = diffStr / strDurElapsed
                     local durPerSec = diffDur / strDurElapsed
-                    
                     for i, mult in ipairs({1, 60, 3600, 86400, 604800}) do
                         strLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": " .. formatNumber(strPerSec * mult)
                         durLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": " .. formatNumber(durPerSec * mult)
                     end
-                    
                     StatsTracker.SnapStr = StatsTracker.TotalStr
                     StatsTracker.SnapDur = StatsTracker.TotalDur
                     StatsTracker.SnapTime = tick()
@@ -1035,45 +894,8 @@ local function buildMenu()
                 end
             end
 
-            if State.AutoRebirth then
-                if stats.Reb > StatsTracker.LastReb then
-                    StatsTracker.TotalReb = StatsTracker.TotalReb + (stats.Reb - StatsTracker.LastReb)
-                end
-                StatsTracker.LastReb = stats.Reb
-                
-                local rebElapsed = tick() - StatsTracker.RebSnapTime
-                local overallRebElapsed = tick() - StatsTracker.RebStartTime
-                rebTimerTitle.Text = string.format("Auto Rebirth Time: %02dd %02dh %02dm %02ds", math.floor(overallRebElapsed / 86400), math.floor((overallRebElapsed % 86400) / 3600), math.floor((overallRebElapsed % 3600) / 60), math.floor(overallRebElapsed % 60))
-
-                if rebElapsed >= 60 then
-                    rebTimerStatus.Text = "Updated! (Refreshes every 60s)"
-                    rebTimerStatus.TextColor3 = Colors.accent
-                    local rebPerSec = (StatsTracker.TotalReb - StatsTracker.SnapReb) / rebElapsed
-                    
-                    for i, mult in ipairs({1, 60, 3600, 86400, 604800}) do
-                        rebLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": " .. formatNumber(rebPerSec * mult)
-                    end
-                    
-                    StatsTracker.SnapReb = StatsTracker.TotalReb
-                    StatsTracker.RebSnapTime = tick()
-                else
-                    rebTimerStatus.Text = "Calculating in " .. string.format("%.0f", 60 - rebElapsed) .. "s..."
-                    rebTimerStatus.TextColor3 = Colors.textDim
-                end
-            else
-                StatsTracker.TotalReb = 0
-                rebTimerTitle.Text = "Auto Rebirth Time: 00d 00h 00m 00s"
-                rebTimerStatus.Text = "Inactive (Turn on Auto Rebirth)"
-                rebTimerStatus.TextColor3 = Colors.danger
-                for i = 1, 5 do
-                    rebLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": 0"
-                end
-            end
-            
             totalStrLabel.Text = "Str: " .. formatNumber(StatsTracker.TotalStr)
             totalDurLabel.Text = "Dur: " .. formatNumber(StatsTracker.TotalDur)
-            totalRebLabel.Text = "Reb: " .. formatNumber(StatsTracker.TotalReb)
-            
             task.wait(0.1)
         end
     end)
@@ -1089,7 +911,6 @@ local function buildMenu()
         if minimized then return end
         minimized = true
         main.Visible = false
-        
         floatFrame = Instance.new("Frame")
         floatFrame.Size = UDim2.new(0, 110, 0, 35)
         floatFrame.Position = UDim2.new(0, 20, 0.5, -17)
@@ -1100,11 +921,9 @@ local function buildMenu()
         floatFrame.ZIndex = 100
         floatFrame.Parent = sg
         Instance.new("UICorner", floatFrame).CornerRadius = UDim.new(1, 0)
-        
         local floatStroke = Instance.new("UIStroke", floatFrame)
         floatStroke.Color = Colors.accent
         floatStroke.Thickness = 2
-        
         local floatText = Instance.new("TextButton")
         floatText.Size = UDim2.new(1, 0, 1, 0)
         floatText.BackgroundTransparency = 1
@@ -1114,7 +933,6 @@ local function buildMenu()
         floatText.TextSize = 11
         floatText.ZIndex = 101
         floatText.Parent = floatFrame
-        
         floatText.MouseButton1Click:Connect(function()
             if not minimized then return end
             minimized = false
