@@ -1,25 +1,9 @@
 --[[
     ================================================================================
-    R1QVEX PRIVATE SCRIPT | Muscle Legends
+    R1QVEX PRIVATE SCRIPT | Muscle Legends (Pro Edition)
     ================================================================================
     🔑 KEY: R1QTHEKING
-    
-    📌 DESCRIPTION:
-    Advanced stats tracking and farming system for Muscle Legends. Features 
-    an ultra-fast, ping-optimized Fast Rep system, Auto Rebirth, Auto Farm Boss, 
-    and a highly accurate Durability Tracker that calculates real-time gains 
-    without including pre-existing stats.
-
-    ⚡ FEATURES:
-    - Fast Rep optimized with Delta-Time (No Ping Spikes / 0 Lag).
-    - Exact Rep Limits: 500, 2,000, and 5,000 reps/second.
-    - Anti-Kick & Anti-Anomaly (Bypasses server kicks for suspicious activity).
-    - Durability Tracker (Real-time /sec, /min, /hour projections).
-    - Auto Rebirth, Auto Boss Farm, Kill Aura.
-    - Utilities: Fly, ESP, Anti-AFK, FPS Boost.
-    
-    ⚠️ DISCLAIMER: 
-    Use at your own risk. This script is for educational purposes.
+    👤 WHITELIST: Ricsrdo97
     ================================================================================
 ]]
 
@@ -29,43 +13,40 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local RS = ReplicatedStorage
 local KEY = "R1QTHEKING"
+
+--==================== SISTEMA DE WHITELIST ====================
+local AllowedUser = "Ricsrdo97"
+if string.lower(player.Name) ~= string.lower(AllowedUser) then
+    player:Kick("GAY")
+    return
+end
 
 --==================== ANTI-DETECCIÓN Y ANTI-KICK ====================
 pcall(function()
     local mt = getrawmetatable(game)
     setreadonly(mt, false)
     local oldNamecall = mt.__namecall
-    
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        
-        -- Bloquea intentos de Kick y Shutdown
-        if (method == "Kick" and self == player) or (method == "Shutdown" and self == game) then
-            return
-        end
-        
+        if (method == "Kick" and self == player) or (method == "Shutdown" and self == game) then return end
         return oldNamecall(self, ...)
     end)
     setreadonly(mt, true)
-
-    -- Bloquea la función Kick directa
     local oldKick = player.Kick
-    player.Kick = function(self, reason) 
-        print("[ANTI-BAN] Kick bloqueado. Razón: ", tostring(reason))
-        return 
-    end
+    player.Kick = function(self, reason) print("[ANTI-BAN] Kick bloqueado. Razón: ", tostring(reason)) return end
 end)
 
 --==================== HOOK PARA DURABILIDAD ====================
 getgenv().RealDurability = 0
 local function setDurability(value)
-    if type(value) == "number" and value >= 0 then
-        getgenv().RealDurability = value
-    end
+    if type(value) == "number" and value >= 0 then getgenv().RealDurability = value end
 end
 
 local oldNamecall
@@ -73,9 +54,7 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     if (method == "FireServer" or method == "InvokeServer") and self.Name == "updateStats" then
         local args = {...}
-        if args[1] == true and type(args[3]) == "number" then
-            setDurability(args[3])
-        end
+        if args[1] == true and type(args[3]) == "number" then setDurability(args[3]) end
     end
     return oldNamecall(self, ...)
 end)
@@ -100,6 +79,36 @@ task.spawn(function()
     player.CharacterAdded:Connect(function(char) scanContainer(char) end)
 end)
 
+--==================== AUTO REJOIN & AUTO EXECUTE ====================
+local AutoRejoinEnabled = false
+local AutoExecuteLink = "https://raw.githubusercontent.com/R1qvex/ERDN-PRIVATE-SCRIPT/refs/heads/main/R1qvex"
+
+local function startAutoRejoin()
+    if AutoRejoinEnabled then return end
+    AutoRejoinEnabled = true
+    
+    player.OnTeleport:Connect(function(TeleportState)
+        if TeleportState == Enum.TeleportState.Started then
+            pcall(function()
+                if queue_on_teleport then
+                    queue_on_teleport(string.format([[loadstring(game:HttpGet("%s"))()]], AutoExecuteLink))
+                end
+            end)
+        end
+    end)
+
+    task.spawn(function()
+        while AutoRejoinEnabled do
+            task.wait(5)
+            if not game:IsLoaded() then
+                pcall(function() TeleportService:Teleport(game.PlaceId, player) end)
+            end
+        end
+    end)
+end
+
+local function stopAutoRejoin() AutoRejoinEnabled = false end
+
 --==================== STATE ====================
 local State = {
     FastRep = false, AutoRebirth = false, AutoFarmBoss = false, AutoPunch = false,
@@ -118,17 +127,18 @@ local StatsTracker = {
 
 local BossCache = { Arena = nil, Model = nil, TopY = 0, LastCheck = 0 }
 
---==================== COLORES ====================
+--==================== COLORES (PRO EDITION) ====================
 local Colors = {
-    bg = Color3.fromRGB(10, 10, 10),
-    panel = Color3.fromRGB(18, 18, 18),
-    sidebar = Color3.fromRGB(14, 14, 14),
-    accent = Color3.fromRGB(180, 130, 255),
+    bg = Color3.fromRGB(12, 12, 15),
+    panel = Color3.fromRGB(22, 18, 22),
+    sidebar = Color3.fromRGB(16, 14, 16),
+    accent = Color3.fromRGB(220, 40, 40),
+    accentDark = Color3.fromRGB(150, 20, 20),
     text = Color3.fromRGB(255, 255, 255),
-    textDim = Color3.fromRGB(140, 140, 140),
-    danger = Color3.fromRGB(255, 60, 60),
-    white = Color3.fromRGB(255, 255, 255),
-    success = Color3.fromRGB(100, 255, 100)
+    textDim = Color3.fromRGB(160, 140, 140),
+    danger = Color3.fromRGB(255, 80, 80),
+    success = Color3.fromRGB(50, 255, 120),
+    border = Color3.fromRGB(80, 20, 20)
 }
 
 --==================== HELPERS ====================
@@ -187,7 +197,6 @@ local function stopFastRep()
     if fastRepThread then task.cancel(fastRepThread); fastRepThread = nil end
 end
 
--- SISTEMA DE FAST REP SIN PING (Frame-Accurate)
 local function startFastRep(repsPerSecond)
     if not State.FastRep then
         local stats = getPlayerStats()
@@ -199,35 +208,27 @@ local function startFastRep(repsPerSecond)
         StatsTracker.SnapDur = 0
         StatsTracker.SnapTime = tick()
     end
-
     stopFastRep()
     State.FastRep = true
-
     fastRepThread = task.spawn(function()
         local cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
         local accumulatedReps = 0
         local lastTime = tick()
-        
         while State.FastRep do
             if not cachedEvent or not cachedEvent.Parent then
                 cachedEvent = player:FindFirstChild("muscleEvent") or player:FindFirstChild("MuscleEvent")
             end
-            
             if cachedEvent then
                 local currentTime = tick()
                 local deltaTime = currentTime - lastTime
                 lastTime = currentTime
-                
                 accumulatedReps = accumulatedReps + (repsPerSecond * deltaTime)
                 local repsToSend = math.floor(accumulatedReps)
-                
                 if repsToSend > 0 then
                     accumulatedReps = accumulatedReps - repsToSend
                     local fireServer = cachedEvent.FireServer
                     pcall(function()
-                        for i = 1, repsToSend do
-                            fireServer(cachedEvent, "rep")
-                        end
+                        for i = 1, repsToSend do fireServer(cachedEvent, "rep") end
                     end)
                 end
             end
@@ -295,11 +296,11 @@ local function startKillAura()
     end)
 end
 
+-- Lógica del Boss Normal
 local bossHeartbeatConn = nil
 local function getBossTargets()
     local bosses = {}; local myChar = getChar()
     local targetNames = {["Boss1"]=true,["Boss2"]=true,["Boss3"]=true,["Boss4"]=true,["Boss5"]=true,["Boss6"]=true}
-    
     if not BossCache.Arena or not BossCache.Arena.Parent then
         local events = Workspace:FindFirstChild("Events")
         BossCache.Arena = events and events:FindFirstChild("BossArena")
@@ -309,7 +310,6 @@ local function getBossTargets()
             end 
         end
     end
-    
     if BossCache.Arena then
         for _,obj in ipairs(BossCache.Arena:GetChildren()) do
             if obj:IsA("Model") and obj~=myChar and targetNames[obj.Name] then
@@ -328,9 +328,7 @@ local function startAutoFarmBoss()
     if State.AutoFarmBoss then return end; State.AutoFarmBoss = true
     State.AutoPunch = false; stopAutoPunch(); startAutoPunch()
     if bossHeartbeatConn then bossHeartbeatConn:Disconnect() end
-    BossCache.Model = nil
-    BossCache.TopY = 0
-    
+    BossCache.Model = nil; BossCache.TopY = 0
     bossHeartbeatConn = RunService.Heartbeat:Connect(function()
         if not State.AutoFarmBoss then return end
         local bosses = getBossTargets()
@@ -346,9 +344,7 @@ local function startAutoFarmBoss()
                     hrp.Anchored = false; hrp.Velocity = Vector3.zero
                     local centerPos = model:GetPivot().Position
                     if model ~= BossCache.Model or tick() - BossCache.LastCheck > 1 then
-                        BossCache.Model = model
-                        BossCache.LastCheck = tick()
-                        BossCache.TopY = -math.huge
+                        BossCache.Model = model; BossCache.LastCheck = tick(); BossCache.TopY = -math.huge
                         for _,v in ipairs(model:GetDescendants()) do
                             if v:IsA("BasePart") and v.Transparency < 0.9 then
                                 local topEdge = v.Position.Y + (v.Size.Y / 2)
@@ -370,6 +366,7 @@ local function stopAutoFarmBoss()
     stopAutoPunch(); local hrp = getHRP(); if hrp then pcall(function() hrp.Anchored = false end) end
 end
 
+-- ESP, Fly, Anti-AFK
 local function toggleESP(state)
     pcall(function()
         local espFolder = game:GetService("CoreGui"):FindFirstChild("R1Q_ESP")
@@ -418,11 +415,35 @@ local function toggleAntiAfk(state)
     end
 end
 
+-- FPS BOOST CORREGIDO
 local function toggleFPSBoost(state)
-    pcall(function() if state then settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 else settings().Rendering.QualityLevel = Enum.QualityLevel.Level10 end end)
+    State.FPSBoost = state
+    if state then
+        pcall(function() 
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 100000
+            Lighting.Brightness = 2
+        end)
+        for _, v in ipairs(game.Workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                v.Enabled = false
+            end
+        end
+    else
+        pcall(function()
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = 1000
+            Lighting.Brightness = 1
+        end)
+        for _, v in ipairs(game.Workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                v.Enabled = true
+            end
+        end
+    end
 end
 
---==================== UI ====================
+--==================== UI (PRO EDITION) ====================
 local existing = player:FindFirstChild("PlayerGui"):FindFirstChild("R1QVEX_PrivateUI")
 if existing then existing:Destroy() end
 local sg = Instance.new("ScreenGui")
@@ -435,28 +456,30 @@ sg.Parent = player:WaitForChild("PlayerGui")
 
 -- LOGIN
 local loginFrame = Instance.new("Frame")
-loginFrame.Size = UDim2.new(0, 300, 0, 200)
-loginFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
+loginFrame.Size = UDim2.new(0, 320, 0, 230)
+loginFrame.Position = UDim2.new(0.5, -160, 0.5, -115)
 loginFrame.BackgroundColor3 = Colors.bg
-loginFrame.BorderSizePixel = 0
 loginFrame.ZIndex = 2
 loginFrame.Parent = sg
-Instance.new("UICorner", loginFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", loginFrame).CornerRadius = UDim.new(0, 12)
+local loginStroke = Instance.new("UIStroke", loginFrame)
+loginStroke.Color = Colors.accentDark
+loginStroke.Thickness = 2
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 40)
-title.Position = UDim2.new(0, 0, 0, 20)
+title.Position = UDim2.new(0, 0, 0, 25)
 title.BackgroundTransparency = 1
-title.Text = "R1QVEX PRIVATE SCRIPT"
+title.Text = "R1QVEX | PRO"
 title.TextColor3 = Colors.accent
-title.TextSize = 20
-title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+title.Font = Enum.Font.GothamBlack
 title.ZIndex = 3
 title.Parent = loginFrame
 
 local keyInput = Instance.new("TextBox")
-keyInput.Size = UDim2.new(1, -40, 0, 40)
-keyInput.Position = UDim2.new(0, 20, 0, 70)
+keyInput.Size = UDim2.new(1, -50, 0, 45)
+keyInput.Position = UDim2.new(0, 25, 0, 80)
 keyInput.BackgroundColor3 = Colors.panel
 keyInput.TextColor3 = Colors.text
 keyInput.Text = ""
@@ -466,14 +489,17 @@ keyInput.Font = Enum.Font.GothamBold
 keyInput.ZIndex = 3
 keyInput.Parent = loginFrame
 Instance.new("UICorner", keyInput).CornerRadius = UDim.new(0, 8)
+local keyStroke = Instance.new("UIStroke", keyInput)
+keyStroke.Color = Colors.border
 
 local verifyBtn = Instance.new("TextButton")
-verifyBtn.Size = UDim2.new(1, -40, 0, 40)
-verifyBtn.Position = UDim2.new(0, 20, 0, 130)
+verifyBtn.Size = UDim2.new(1, -50, 0, 45)
+verifyBtn.Position = UDim2.new(0, 25, 0, 145)
 verifyBtn.BackgroundColor3 = Colors.accent
 verifyBtn.TextColor3 = Colors.bg
 verifyBtn.Text = "VERIFY"
-verifyBtn.Font = Enum.Font.GothamBold
+verifyBtn.Font = Enum.Font.GothamBlack
+verifyBtn.TextSize = 14
 verifyBtn.ZIndex = 3
 verifyBtn.Parent = loginFrame
 Instance.new("UICorner", verifyBtn).CornerRadius = UDim.new(0, 8)
@@ -482,32 +508,34 @@ Instance.new("UICorner", verifyBtn).CornerRadius = UDim.new(0, 8)
 local function buildMenu()
     loginFrame:Destroy()
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 550, 0, 340)
-    main.Position = UDim2.new(0.5, -275, 0.5, -170)
+    main.Size = UDim2.new(0, 580, 0, 370)
+    main.Position = UDim2.new(0.5, -290, 0.5, -185)
     main.BackgroundColor3 = Colors.bg
-    main.BorderSizePixel = 0
     main.Active = true
     main.Draggable = true
     main.ZIndex = 2
     main.Parent = sg
-    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 15)
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+    local mainStroke = Instance.new("UIStroke", main)
+    mainStroke.Color = Colors.accentDark
+    mainStroke.Thickness = 2
 
+    -- HEADER
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 45)
     header.BackgroundColor3 = Colors.panel
-    header.BorderSizePixel = 0
     header.ZIndex = 3
     header.Parent = main
-    Instance.new("UICorner", header).CornerRadius = UDim.new(0, 15)
+    Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -50, 1, 0)
-    title.Position = UDim2.new(0, 15, 0, 0)
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 20, 0, 0)
     title.BackgroundTransparency = 1
     title.Text = "R1QVEX PRIVATE SCRIPT"
     title.TextColor3 = Colors.accent
     title.TextSize = 16
-    title.Font = Enum.Font.GothamBold
+    title.Font = Enum.Font.GothamBlack
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 4
     title.Parent = header
@@ -515,49 +543,51 @@ local function buildMenu()
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
     minimizeBtn.Position = UDim2.new(1, -40, 0, 7)
-    minimizeBtn.BackgroundColor3 = Colors.bg
+    minimizeBtn.BackgroundColor3 = Colors.accentDark
     minimizeBtn.Text = "−"
     minimizeBtn.TextColor3 = Colors.text
-    minimizeBtn.TextSize = 20
+    minimizeBtn.TextSize = 18
     minimizeBtn.Font = Enum.Font.GothamBold
     minimizeBtn.ZIndex = 4
     minimizeBtn.Parent = header
     Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(0, 6)
 
+    -- SIDEBAR
     local sidebar = Instance.new("Frame")
-    sidebar.Size = UDim2.new(0, 130, 1, -55)
-    sidebar.Position = UDim2.new(0, 10, 0, 50)
+    sidebar.Size = UDim2.new(0, 140, 1, -55)
+    sidebar.Position = UDim2.new(0, 10, 0, 55)
     sidebar.BackgroundColor3 = Colors.sidebar
-    sidebar.BorderSizePixel = 0
     sidebar.ZIndex = 3
     sidebar.Parent = main
     Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
+    local sbStroke = Instance.new("UIStroke", sidebar); sbStroke.Color = Colors.border
 
     local sidebarLayout = Instance.new("UIListLayout")
     sidebarLayout.Padding = UDim.new(0, 8)
     sidebarLayout.Parent = sidebar
 
+    -- CONTENT
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -150, 1, -55)
-    content.Position = UDim2.new(0, 140, 0, 50)
+    content.Size = UDim2.new(1, -160, 1, -65)
+    content.Position = UDim2.new(0, 150, 0, 55)
     content.BackgroundColor3 = Colors.sidebar
-    content.BorderSizePixel = 0
     content.ZIndex = 3
     content.Parent = main
     Instance.new("UICorner", content).CornerRadius = UDim.new(0, 10)
+    local ctStroke = Instance.new("UIStroke", content); ctStroke.Color = Colors.border
 
     local pages = {}
     local tabButtons = {}
 
     local function createTab(name, icon)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, -10, 0, 40)
-        btn.Position = UDim2.new(0, 5, 0, 0)
+        btn.Size = UDim2.new(1, -15, 0, 40)
+        btn.Position = UDim2.new(0, 7.5, 0, 0)
         btn.BackgroundColor3 = Colors.sidebar
         btn.TextColor3 = Colors.textDim
         btn.Text = "  " .. icon .. "  " .. name
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 12
+        btn.TextSize = 13
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.ZIndex = 4
         btn.Parent = sidebar
@@ -570,6 +600,7 @@ local function buildMenu()
         page.BackgroundTransparency = 1
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.ScrollBarThickness = 2
         page.ZIndex = 4
         page.Visible = false
         page.Parent = content
@@ -599,12 +630,14 @@ local function buildMenu()
 
     local function createToggle(parent, text, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 45)
+        frame.Size = UDim2.new(1, -10, 0, 50)
         frame.BackgroundColor3 = Colors.panel
-        frame.BorderSizePixel = 0
         frame.ZIndex = 5
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+        local stroke = Instance.new("UIStroke", frame)
+        stroke.Color = Colors.border
+        stroke.Thickness = 1
 
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, -60, 1, 0)
@@ -619,17 +652,19 @@ local function buildMenu()
         label.Parent = frame
 
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 40, 0, 20)
-        btn.Position = UDim2.new(1, -55, 0.5, -10)
+        btn.Size = UDim2.new(0, 40, 0, 22)
+        btn.Position = UDim2.new(1, -55, 0.5, -11)
         btn.BackgroundColor3 = Colors.bg
         btn.Text = ""
         btn.ZIndex = 6
         btn.Parent = frame
         Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+        local btnStroke = Instance.new("UIStroke", btn)
+        btnStroke.Color = Colors.border
 
         local knob = Instance.new("Frame")
         knob.Size = UDim2.new(0, 16, 0, 16)
-        knob.Position = UDim2.new(0, 2, 0.5, -8)
+        knob.Position = UDim2.new(0, 3, 0.5, -8)
         knob.BackgroundColor3 = Colors.textDim
         knob.ZIndex = 7
         knob.Parent = btn
@@ -639,24 +674,99 @@ local function buildMenu()
         btn.MouseButton1Click:Connect(function()
             state = not state
             btn.BackgroundColor3 = state and Colors.accent or Colors.bg
-            knob.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+            knob.Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
             knob.BackgroundColor3 = state and Colors.white or Colors.textDim
             callback(state)
         end)
     end
 
     -- Farm Tab
-    createToggle(pages["Farm"], "Max Rep (5,000/s)", function(v) if v then startFastRep(5000) else stopFastRep() end end)
-    createToggle(pages["Farm"], "Mega Rep (2,000/s)", function(v) if v then startFastRep(2000) else stopFastRep() end end)
+    createToggle(pages["Farm"], "Max Rep (5k/s)", function(v) if v then startFastRep(5000) else stopFastRep() end end)
+    createToggle(pages["Farm"], "Mega Rep (2k/s)", function(v) if v then startFastRep(2000) else stopFastRep() end end)
     createToggle(pages["Farm"], "Fast Rep (500/s)", function(v) if v then startFastRep(500) else stopFastRep() end end)
+    
+    -- Fast Rep Adaptativo
+    local customFrame = Instance.new("Frame")
+    customFrame.Size = UDim2.new(1, -10, 0, 50)
+    customFrame.BackgroundColor3 = Colors.panel
+    customFrame.ZIndex = 5
+    customFrame.Parent = pages["Farm"]
+    Instance.new("UICorner", customFrame).CornerRadius = UDim.new(0, 8)
+    local cStroke = Instance.new("UIStroke", customFrame)
+    cStroke.Color = Colors.border
+
+    local customBox = Instance.new("TextBox")
+    customBox.Size = UDim2.new(0.35, -10, 0, 30)
+    customBox.Position = UDim2.new(0, 10, 0.5, -15)
+    customBox.BackgroundColor3 = Colors.bg
+    customBox.TextColor3 = Colors.text
+    customBox.PlaceholderText = "Reps/s"
+    customBox.PlaceholderColor3 = Colors.textDim
+    customBox.Text = "1000"
+    customBox.Font = Enum.Font.GothamBold
+    customBox.TextSize = 12
+    customBox.ZIndex = 6
+    customBox.Parent = customFrame
+    Instance.new("UICorner", customBox).CornerRadius = UDim.new(0, 6)
+    local cbStroke = Instance.new("UIStroke", customBox)
+    cbStroke.Color = Colors.border
+
+    local customLabel = Instance.new("TextLabel")
+    customLabel.Size = UDim2.new(0.65, -60, 1, 0)
+    customLabel.Position = UDim2.new(0.35, 0, 0, 0)
+    customLabel.BackgroundTransparency = 1
+    customLabel.Text = "Custom Fast Rep"
+    customLabel.TextColor3 = Colors.text
+    customLabel.Font = Enum.Font.GothamBold
+    customLabel.TextSize = 12
+    customLabel.TextXAlignment = Enum.TextXAlignment.Left
+    customLabel.ZIndex = 6
+    customLabel.Parent = customFrame
+
+    local customBtn = Instance.new("TextButton")
+    customBtn.Size = UDim2.new(0, 40, 0, 22)
+    customBtn.Position = UDim2.new(1, -55, 0.5, -11)
+    customBtn.BackgroundColor3 = Colors.bg
+    customBtn.Text = ""
+    customBtn.ZIndex = 6
+    customBtn.Parent = customFrame
+    Instance.new("UICorner", customBtn).CornerRadius = UDim.new(1, 0)
+    local cbBtnStroke = Instance.new("UIStroke", customBtn)
+    cbBtnStroke.Color = Colors.border
+
+    local customKnob = Instance.new("Frame")
+    customKnob.Size = UDim2.new(0, 16, 0, 16)
+    customKnob.Position = UDim2.new(0, 3, 0.5, -8)
+    customKnob.BackgroundColor3 = Colors.textDim
+    customKnob.ZIndex = 7
+    customKnob.Parent = customBtn
+    Instance.new("UICorner", customKnob).CornerRadius = UDim.new(1, 0)
+
+    local customState = false
+    customBtn.MouseButton1Click:Connect(function()
+        customState = not customState
+        customBtn.BackgroundColor3 = customState and Colors.accent or Colors.bg
+        customKnob.Position = customState and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        customKnob.BackgroundColor3 = customState and Colors.white or Colors.textDim
+        
+        if customState then
+            local reps = tonumber(customBox.Text)
+            if reps and reps > 0 then startFastRep(reps) else
+                customState = false; customBtn.BackgroundColor3 = Colors.bg
+                customKnob.Position = UDim2.new(0, 3, 0.5, -8); customKnob.BackgroundColor3 = Colors.textDim
+            end
+        else stopFastRep() end
+    end)
 
     -- Boss Tab
     local statusFrame = Instance.new("Frame")
     statusFrame.Size = UDim2.new(1, -10, 0, 55)
-    statusFrame.BackgroundColor3 = Colors.bg
+    statusFrame.BackgroundColor3 = Colors.panel
     statusFrame.ZIndex = 5
     statusFrame.Parent = pages["Boss"]
     Instance.new("UICorner", statusFrame).CornerRadius = UDim.new(0, 8)
+    local sfStroke = Instance.new("UIStroke", statusFrame)
+    sfStroke.Color = Colors.border
 
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, 0, 0, 25)
@@ -680,24 +790,14 @@ local function buildMenu()
     healthLabel.ZIndex = 6
     healthLabel.Parent = statusFrame
 
-    createToggle(pages["Boss"], "Auto Farm Boss", function(v)
-        if v then
-            startAutoFarmBoss()
-            statusLabel.TextColor3 = Colors.accent
-        else
-            stopAutoFarmBoss()
-            statusLabel.Text = "Searching for Boss..."
-            statusLabel.TextColor3 = Colors.accent
-            healthLabel.Text = "Health: N/A"
-        end
+    createToggle(pages["Boss"], "Auto Farm Normal Boss", function(v)
+        if v then startAutoFarmBoss(); statusLabel.TextColor3 = Colors.accent
+        else stopAutoFarmBoss(); statusLabel.Text = "Searching for Boss..."; statusLabel.TextColor3 = Colors.accent; healthLabel.Text = "Health: N/A" end
     end)
 
     task.spawn(function()
         while sg.Parent do
-            if State.AutoFarmBoss then
-                statusLabel.Text = "Attacking: " .. State.CurrentBoss
-                healthLabel.Text = "Health: " .. State.BossHealth
-            end
+            if State.AutoFarmBoss then statusLabel.Text = "Attacking: " .. State.CurrentBoss; healthLabel.Text = "Health: " .. State.BossHealth end
             task.wait(0.5)
         end
     end)
@@ -713,15 +813,17 @@ local function buildMenu()
     createToggle(pages["Utils"], "Fly (WASD)", function(v) toggleFly(v) end)
     createToggle(pages["Utils"], "ESP (Players)", function(v) toggleESP(v) end)
     createToggle(pages["Utils"], "Anti-AFK", function(v) toggleAntiAfk(v) end)
-    createToggle(pages["Utils"], "FPS Boost", function(v) toggleFPSBoost(v) end)
+    createToggle(pages["Utils"], "FPS Boost (Max Performance)", function(v) toggleFPSBoost(v) end)
+    createToggle(pages["Utils"], "Auto Rejoin & Execute", function(v) if v then startAutoRejoin() else stopAutoRejoin() end end)
 
     -- Stats Tab
     local totalFrame = Instance.new("Frame")
-    totalFrame.Size = UDim2.new(1, -10, 0, 75)
+    totalFrame.Size = UDim2.new(1, -10, 0, 80)
     totalFrame.BackgroundColor3 = Colors.panel
     totalFrame.ZIndex = 5
     totalFrame.Parent = pages["Stats"]
     Instance.new("UICorner", totalFrame).CornerRadius = UDim.new(0, 8)
+    local tfStroke = Instance.new("UIStroke", totalFrame); tfStroke.Color = Colors.border
 
     local totalTitle = Instance.new("TextLabel")
     totalTitle.Size = UDim2.new(1, -20, 0, 20)
@@ -736,47 +838,51 @@ local function buildMenu()
     totalTitle.Parent = totalFrame
 
     local totalStrLabel = Instance.new("TextLabel")
-    totalStrLabel.Size = UDim2.new(0.33, -10, 0, 35)
-    totalStrLabel.Position = UDim2.new(0, 10, 0, 30)
+    totalStrLabel.Size = UDim2.new(0.33, -8, 0, 40)
+    totalStrLabel.Position = UDim2.new(0, 5, 0, 30)
     totalStrLabel.BackgroundColor3 = Colors.bg
     totalStrLabel.TextColor3 = Colors.success
-    totalStrLabel.TextSize = 14
+    totalStrLabel.TextSize = 13
     totalStrLabel.Font = Enum.Font.GothamBold
     totalStrLabel.Text = "Str: 0"
     totalStrLabel.ZIndex = 7
     totalStrLabel.Parent = totalFrame
     Instance.new("UICorner", totalStrLabel).CornerRadius = UDim.new(0, 6)
+    local tsStroke = Instance.new("UIStroke", totalStrLabel); tsStroke.Color = Colors.border
 
     local totalDurLabel = Instance.new("TextLabel")
-    totalDurLabel.Size = UDim2.new(0.33, -10, 0, 35)
+    totalDurLabel.Size = UDim2.new(0.33, -8, 0, 40)
     totalDurLabel.Position = UDim2.new(0.33, 5, 0, 30)
     totalDurLabel.BackgroundColor3 = Colors.bg
     totalDurLabel.TextColor3 = Colors.success
-    totalDurLabel.TextSize = 14
+    totalDurLabel.TextSize = 13
     totalDurLabel.Font = Enum.Font.GothamBold
     totalDurLabel.Text = "Dur: 0"
     totalDurLabel.ZIndex = 7
     totalDurLabel.Parent = totalFrame
     Instance.new("UICorner", totalDurLabel).CornerRadius = UDim.new(0, 6)
+    local tdStroke = Instance.new("UIStroke", totalDurLabel); tdStroke.Color = Colors.border
 
     local totalRebLabel = Instance.new("TextLabel")
-    totalRebLabel.Size = UDim2.new(0.33, -10, 0, 35)
-    totalRebLabel.Position = UDim2.new(0.66, 0, 0, 30)
+    totalRebLabel.Size = UDim2.new(0.33, -8, 0, 40)
+    totalRebLabel.Position = UDim2.new(0.66, 5, 0, 30)
     totalRebLabel.BackgroundColor3 = Colors.bg
     totalRebLabel.TextColor3 = Colors.success
-    totalRebLabel.TextSize = 14
+    totalRebLabel.TextSize = 13
     totalRebLabel.Font = Enum.Font.GothamBold
     totalRebLabel.Text = "Reb: 0"
     totalRebLabel.ZIndex = 7
     totalRebLabel.Parent = totalFrame
     Instance.new("UICorner", totalRebLabel).CornerRadius = UDim.new(0, 6)
+    local trStroke = Instance.new("UIStroke", totalRebLabel); trStroke.Color = Colors.border
 
     local strDurTimerFrame = Instance.new("Frame")
-    strDurTimerFrame.Size = UDim2.new(1, -10, 0, 50)
-    strDurTimerFrame.BackgroundColor3 = Colors.bg
+    strDurTimerFrame.Size = UDim2.new(1, -10, 0, 55)
+    strDurTimerFrame.BackgroundColor3 = Colors.panel
     strDurTimerFrame.ZIndex = 5
     strDurTimerFrame.Parent = pages["Stats"]
     Instance.new("UICorner", strDurTimerFrame).CornerRadius = UDim.new(0, 8)
+    local sdtStroke = Instance.new("UIStroke", strDurTimerFrame); sdtStroke.Color = Colors.border
 
     local strDurTimerTitle = Instance.new("TextLabel")
     strDurTimerTitle.Size = UDim2.new(1, 0, 0, 20)
@@ -802,12 +908,12 @@ local function buildMenu()
 
     local function createProjectionFrame(parent, title, icon)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 85)
+        frame.Size = UDim2.new(1, -10, 0, 90)
         frame.BackgroundColor3 = Colors.panel
-        frame.BorderSizePixel = 0
         frame.ZIndex = 5
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+        local pfStroke = Instance.new("UIStroke", frame); pfStroke.Color = Colors.border
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(1, -20, 0, 20)
@@ -822,8 +928,8 @@ local function buildMenu()
         titleLabel.Parent = frame
 
         local grid = Instance.new("Frame")
-        grid.Size = UDim2.new(1, -20, 0, 55)
-        grid.Position = UDim2.new(0, 10, 0, 25)
+        grid.Size = UDim2.new(1, -10, 0, 60)
+        grid.Position = UDim2.new(0, 5, 0, 25)
         grid.BackgroundTransparency = 1
         grid.ZIndex = 6
         grid.Parent = frame
@@ -840,7 +946,7 @@ local function buildMenu()
             lbl.BackgroundColor3 = Colors.bg
             lbl.TextColor3 = Colors.textDim
             lbl.TextSize = 10
-            lbl.Font = Enum.Font.Gotham
+            lbl.Font = Enum.Font.GothamBold
             lbl.Text = "/ " .. suffix .. ": 0"
             lbl.ZIndex = 7
             lbl.Parent = grid
@@ -852,6 +958,39 @@ local function buildMenu()
 
     local strLabels = createProjectionFrame(pages["Stats"], "Strength (10s)", "💪")
     local durLabels = createProjectionFrame(pages["Stats"], "Durability (10s)", "🛡️")
+    
+    -- Rebirth Timer UI
+    local rebTimerFrame = Instance.new("Frame")
+    rebTimerFrame.Size = UDim2.new(1, -10, 0, 55)
+    rebTimerFrame.BackgroundColor3 = Colors.panel
+    rebTimerFrame.ZIndex = 5
+    rebTimerFrame.Parent = pages["Stats"]
+    Instance.new("UICorner", rebTimerFrame).CornerRadius = UDim.new(0, 8)
+    local rtStroke = Instance.new("UIStroke", rebTimerFrame); rtStroke.Color = Colors.border
+
+    local rebTimerTitle = Instance.new("TextLabel")
+    rebTimerTitle.Size = UDim2.new(1, 0, 0, 20)
+    rebTimerTitle.Position = UDim2.new(0, 0, 0, 5)
+    rebTimerTitle.BackgroundTransparency = 1
+    rebTimerTitle.Text = "Auto Rebirth Time: 00d 00h 00m 00s"
+    rebTimerTitle.TextColor3 = Colors.text
+    rebTimerTitle.Font = Enum.Font.GothamBold
+    rebTimerTitle.TextSize = 13
+    rebTimerTitle.ZIndex = 6
+    rebTimerTitle.Parent = rebTimerFrame
+
+    local rebTimerStatus = Instance.new("TextLabel")
+    rebTimerStatus.Size = UDim2.new(1, 0, 0, 15)
+    rebTimerStatus.Position = UDim2.new(0, 0, 0, 25)
+    rebTimerStatus.BackgroundTransparency = 1
+    rebTimerStatus.Text = "Waiting for 60 seconds..."
+    rebTimerStatus.TextColor3 = Colors.textDim
+    rebTimerStatus.Font = Enum.Font.Gotham
+    rebTimerStatus.TextSize = 11
+    rebTimerStatus.ZIndex = 6
+    rebTimerStatus.Parent = rebTimerFrame
+    
+    local rebLabels = createProjectionFrame(pages["Stats"], "Rebirths (60s)", "🔄")
 
     -- Stats Loop
     task.spawn(function()
@@ -862,16 +1001,13 @@ local function buildMenu()
                     StatsTracker.TotalStr = StatsTracker.TotalStr + (stats.Str - StatsTracker.LastStr)
                 end
                 StatsTracker.LastStr = stats.Str
-
                 if StatsTracker.DurSession ~= StatsTracker.FastRepStartTime then
                     StatsTracker.DurSession = StatsTracker.FastRepStartTime
-                    StatsTracker.LastDur = nil
-                    StatsTracker.DurSource = nil
+                    StatsTracker.LastDur = nil; StatsTracker.DurSource = nil
                 end
                 if stats.Dur > 0 then
                     if stats.DurSource ~= StatsTracker.DurSource or StatsTracker.LastDur == nil then
-                        StatsTracker.DurSource = stats.DurSource
-                        StatsTracker.LastDur = stats.Dur
+                        StatsTracker.DurSource = stats.DurSource; StatsTracker.LastDur = stats.Dur
                     else
                         if stats.Dur > StatsTracker.LastDur then
                             StatsTracker.TotalDur = StatsTracker.TotalDur + (stats.Dur - StatsTracker.LastDur)
@@ -879,11 +1015,9 @@ local function buildMenu()
                         StatsTracker.LastDur = stats.Dur
                     end
                 end
-
                 local strDurElapsed = tick() - StatsTracker.SnapTime
                 local overallElapsed = tick() - StatsTracker.FastRepStartTime
                 strDurTimerTitle.Text = string.format("Fast Rep Time: %02dd %02dh %02dm %02ds", math.floor(overallElapsed / 86400), math.floor((overallElapsed % 86400) / 3600), math.floor((overallElapsed % 3600) / 60), math.floor(overallElapsed % 60))
-
                 if strDurElapsed >= 10 then
                     strDurTimerStatus.Text = "Updated! (Refreshes every 10s)"
                     strDurTimerStatus.TextColor3 = Colors.accent
@@ -895,16 +1029,13 @@ local function buildMenu()
                         strLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": " .. formatNumber(strPerSec * mult)
                         durLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": " .. formatNumber(durPerSec * mult)
                     end
-                    StatsTracker.SnapStr = StatsTracker.TotalStr
-                    StatsTracker.SnapDur = StatsTracker.TotalDur
-                    StatsTracker.SnapTime = tick()
+                    StatsTracker.SnapStr = StatsTracker.TotalStr; StatsTracker.SnapDur = StatsTracker.TotalDur; StatsTracker.SnapTime = tick()
                 else
                     strDurTimerStatus.Text = "Calculating in " .. string.format("%.0f", 10 - strDurElapsed) .. "s..."
                     strDurTimerStatus.TextColor3 = Colors.textDim
                 end
             else
-                StatsTracker.TotalStr = 0
-                StatsTracker.TotalDur = 0
+                StatsTracker.TotalStr = 0; StatsTracker.TotalDur = 0
                 strDurTimerTitle.Text = "Fast Rep Time: 00d 00h 00m 00s"
                 strDurTimerStatus.Text = "Inactive (Turn on Fast Rep)"
                 strDurTimerStatus.TextColor3 = Colors.danger
@@ -913,9 +1044,40 @@ local function buildMenu()
                     durLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": 0"
                 end
             end
+            
+            if State.AutoRebirth then
+                if stats.Reb > StatsTracker.LastReb then
+                    StatsTracker.TotalReb = StatsTracker.TotalReb + (stats.Reb - StatsTracker.LastReb)
+                end
+                StatsTracker.LastReb = stats.Reb
+                local rebElapsed = tick() - StatsTracker.RebSnapTime
+                local overallRebElapsed = tick() - StatsTracker.RebStartTime
+                rebTimerTitle.Text = string.format("Auto Rebirth Time: %02dd %02dh %02dm %02ds", math.floor(overallRebElapsed / 86400), math.floor((overallRebElapsed % 86400) / 3600), math.floor((overallRebElapsed % 3600) / 60), math.floor(overallRebElapsed % 60))
+                if rebElapsed >= 60 then
+                    rebTimerStatus.Text = "Updated! (Refreshes every 60s)"
+                    rebTimerStatus.TextColor3 = Colors.accent
+                    local diffReb = StatsTracker.TotalReb - StatsTracker.SnapReb
+                    local rebPerSec = diffReb / rebElapsed
+                    for i, mult in ipairs({1, 60, 3600, 86400, 604800}) do
+                        rebLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": " .. formatNumber(rebPerSec * mult)
+                    end
+                    StatsTracker.SnapReb = StatsTracker.TotalReb; StatsTracker.RebSnapTime = tick()
+                else
+                    rebTimerStatus.Text = "Calculating in " .. string.format("%.0f", 60 - rebElapsed) .. "s..."
+                    rebTimerStatus.TextColor3 = Colors.textDim
+                end
+            else
+                StatsTracker.TotalReb = 0
+                rebTimerTitle.Text = "Auto Rebirth Time: 00d 00h 00m 00s"
+                rebTimerStatus.Text = "Inactive (Turn on Auto Rebirth)"
+                rebTimerStatus.TextColor3 = Colors.danger
+                for i = 1, 5 do rebLabels[i].Text = "/ " .. ({"sec", "min", "hour", "day", "week"})[i] .. ": 0" end
+            end
 
             totalStrLabel.Text = "Str: " .. formatNumber(StatsTracker.TotalStr)
             totalDurLabel.Text = "Dur: " .. formatNumber(StatsTracker.TotalDur)
+            totalRebLabel.Text = "Reb: " .. formatNumber(StatsTracker.TotalReb)
+            
             task.wait(0.1)
         end
     end)
@@ -932,10 +1094,9 @@ local function buildMenu()
         minimized = true
         main.Visible = false
         floatFrame = Instance.new("Frame")
-        floatFrame.Size = UDim2.new(0, 110, 0, 35)
-        floatFrame.Position = UDim2.new(0, 20, 0.5, -17)
+        floatFrame.Size = UDim2.new(0, 130, 0, 38)
+        floatFrame.Position = UDim2.new(0, 20, 0.5, -19)
         floatFrame.BackgroundColor3 = Colors.panel
-        floatFrame.BorderSizePixel = 0
         floatFrame.Active = true
         floatFrame.Draggable = true
         floatFrame.ZIndex = 100
@@ -949,8 +1110,8 @@ local function buildMenu()
         floatText.BackgroundTransparency = 1
         floatText.Text = "ERDN PRIVATE"
         floatText.TextColor3 = Colors.accent
-        floatText.Font = Enum.Font.GothamBold
-        floatText.TextSize = 11
+        floatText.Font = Enum.Font.GothamBlack
+        floatText.TextSize = 12
         floatText.ZIndex = 101
         floatText.Parent = floatFrame
         floatText.MouseButton1Click:Connect(function()
