@@ -3,7 +3,7 @@
     R1QVEX PRIVATE SCRIPT | Muscle Legends
     ================================================================================
     KEY: R1QTHEKING
-    WHITELIST: Ricsrdo97, Dravex88
+    WHITELIST: Ricsrdo97, Dravex88, holichyl2
     ================================================================================
 ]]
 
@@ -22,10 +22,11 @@ local RS = ReplicatedStorage
 local KEY = "R1QTHEKING"
 local AllowedUser1 = "Ricsrdo97"
 local AllowedUser2 = "Dravex88"
+local AllowedUser3 = "holichyl2"
 
 --==================== WHITELIST SYSTEM ====================
 local pName = string.lower(player.Name)
-if pName ~= string.lower(AllowedUser1) and pName ~= string.lower(AllowedUser2) then
+if pName ~= string.lower(AllowedUser1) and pName ~= string.lower(AllowedUser2) and pName ~= string.lower(AllowedUser3) then
     player:Kick("You have been permanently banned.")
     return
 end
