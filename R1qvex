@@ -119,8 +119,26 @@ startAutoRejoin()
 local State = {
     FastRep = false, AutoRebirth = false, AutoFarmBoss = false, AutoPunch = false,
     KillAura = false, AntiAFK = false, FPSBoost = false, Fly = false, ESP = false, AutoRace = false, FlySpeed = 50,
-    CurrentBoss = "None", BossHealth = "N/A"
+    CurrentBoss = "None", BossHealth = "N/A", AutoBuy = false
 }
+
+-- TABLA DE LA TIENDA
+local ShopItems = {
+    {Name = "Protein Shake", Key = "ProteinShake_x1", Price = 40, Slot = 1},
+    {Name = "Energy Shake", Key = "EnergyShake_x1", Price = 40, Slot = 2},
+    {Name = "TOUGH Bar", Key = "ToughBar_x1", Price = 80, Slot = 3},
+    {Name = "Hercules Lionbells", Key = "HerculesLionbells_Skin", Price = 100, Slot = 4},
+    {Name = "Apollo Sunforge", Key = "ApolloSunforge_Skin", Price = 300, Slot = 5},
+    {Name = "Poseidon Tideweight", Key = "PoseidonTideweight_Skin", Price = 600, Slot = 6},
+    {Name = "Zeus Stormrunner", Key = "ZeusStormrunner_Skin", Price = 1500, Slot = 7},
+    {Name = "Poseidon's Wrath", Key = "PoseidonsWrath_Aura", Price = 4500, Slot = 8},
+    {Name = "Zeus Thunderstorm", Key = "ZeusThunderstorm_Aura", Price = 7500, Slot = 9},
+    {Name = "Ares Ironfang", Key = "AresIronfang_Pet", Price = 2500, Slot = 10},
+    {Name = "Poseidon Tide", Key = "PoseidonTide_Pet", Price = 5000, Slot = 11},
+    {Name = "Zeus Spark", Key = "ZeusSpark_Pet", Price = 8500, Slot = 12}
+}
+
+local SelectedShopItems = {}
 
 local StatsTracker = {
     TotalStr = 0, TotalDur = 0, TotalReb = 0,
@@ -247,7 +265,6 @@ local function startAutoRace()
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if hrp and hum then
-                -- ANTI-STUN SYSTEM
                 hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
@@ -256,14 +273,12 @@ local function startAutoRace()
                 if hum.Sit then hum.Sit = false end
                 hum.WalkSpeed = originalSpeed
                 
-                -- Forzar posición vertical (bloquear rotaciones raras)
                 local rx, ry, rz = hrp.CFrame:ToEulerAnglesYXZ()
                 if math.abs(rx) > 0.2 or math.abs(rz) > 0.2 then
                     hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, ry, 0)
                 end
                 hrp.AssemblyAngularVelocity = Vector3.zero
                 
-                -- Teleport al inicio si es necesario
                 if (hrp.Position - SPAWN_POS).Magnitude < 50 and tick() - lastTeleportTime > 3 then
                     lastTeleportTime = tick()
                     hrp.CFrame = CFrame.new(NEW_START_POS)
@@ -289,7 +304,6 @@ local function startAutoRace()
                 elseif zone == "Green" or distToEnd < 150 then
                     if distToEnd > 5 then
                         hum.WalkSpeed = originalSpeed
-                        -- Forzar velocidad directa para evitar aturdimiento
                         local targetVel = (FINISH_POS - hrp.Position).Unit * originalSpeed
                         hrp.AssemblyLinearVelocity = Vector3.new(targetVel.X, hrp.AssemblyLinearVelocity.Y, targetVel.Z)
                     else
@@ -300,7 +314,6 @@ local function startAutoRace()
                     end
                 elseif zone == "Yellow" or zone == "Blue" then
                     if forwardDir then
-                        -- Forzar velocidad directa para evitar aturdimiento
                         local targetVel = forwardDir * originalSpeed
                         hrp.AssemblyLinearVelocity = Vector3.new(targetVel.X, hrp.AssemblyLinearVelocity.Y, targetVel.Z)
                     end
@@ -334,6 +347,44 @@ local function stopAutoRace()
         hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
     end
     if RaceStatusLabel then RaceStatusLabel.Text = "ZONE: IDLE" end
+end
+
+--==================== AUTO BUY LOGIC ====================
+local function startAutoBuy()
+    print("[AutoBuy] Iniciando sistema de compra múltiple por Tabla...")
+    task.spawn(function()
+        while State.AutoBuy do
+            local rEvents = RS:FindFirstChild("rEvents")
+            local medalShopRemote = rEvents and rEvents:FindFirstChild("medalShopRemote")
+            
+            if medalShopRemote then
+                for name, item in pairs(SelectedShopItems) do
+                    if not State.AutoBuy then break end
+                    
+                    local purchaseTable = {
+                        ItemName = item.Name,
+                        Key = item.Key,
+                        Price = item.Price,
+                        SlotIndex = item.Slot,
+                        Quantity = 1
+                    }
+
+                    local success, err = pcall(function()
+                        medalShopRemote:InvokeServer("Purchase", purchaseTable)
+                    end)
+
+                    if success then
+                        print("[AutoBuy] ✅ Compra enviada: " .. item.Name)
+                    else
+                        warn("[AutoBuy] ❌ Error: " .. tostring(err))
+                    end
+                    
+                    task.wait(0.5)
+                end
+            end
+            task.wait(1)
+        end
+    end)
 end
 
 --==================== OTHER MECHANICS ====================
@@ -1048,6 +1099,83 @@ local function buildMenu()
         else 
             stopAutoRace()
             raceInfoLabel.Text = "Status: Stopped"
+        end
+    end)
+
+    -- === AUTO BUY MULTI-SELECT EN RACE ===
+    local shopLabel = Instance.new("TextLabel")
+    shopLabel.Size = UDim2.new(1, -8, 0, 15)
+    shopLabel.BackgroundTransparency = 1
+    shopLabel.Text = "Select items for Auto Buy:"
+    shopLabel.TextColor3 = Colors.textDim
+    shopLabel.Font = Enum.Font.GothamBold
+    shopLabel.TextSize = 11
+    shopLabel.TextXAlignment = Enum.TextXAlignment.Left
+    shopLabel.Parent = pages["Race"]
+
+    local shopScroll = Instance.new("ScrollingFrame")
+    shopScroll.Size = UDim2.new(1, -8, 0, 120)
+    shopScroll.BackgroundColor3 = Colors.panel
+    shopScroll.BorderSizePixel = 0
+    shopScroll.ScrollBarThickness = 2
+    shopScroll.ScrollBarImageColor3 = Colors.accent
+    shopScroll.Parent = pages["Race"]
+    Instance.new("UICorner", shopScroll).CornerRadius = UDim.new(0, 6)
+    
+    local shopLayout = Instance.new("UIListLayout")
+    shopLayout.Padding = UDim.new(0, 4)
+    shopLayout.Parent = shopScroll
+
+    local shopButtons = {}
+    
+    for _, itemData in ipairs(ShopItems) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -4, 0, 26)
+        btn.BackgroundColor3 = Colors.bg
+        btn.TextColor3 = Colors.textDim
+        btn.Text = "  " .. itemData.Name .. " (" .. itemData.Price .. ")"
+        btn.Font = Enum.Font.GothamMedium
+        btn.TextSize = 11
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = shopScroll
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+        
+        btn.MouseButton1Click:Connect(function()
+            if SelectedShopItems[itemData.Name] then
+                SelectedShopItems[itemData.Name] = nil
+                btn.BackgroundColor3 = Colors.bg
+                btn.TextColor3 = Colors.textDim
+            else
+                SelectedShopItems[itemData.Name] = itemData
+                btn.BackgroundColor3 = Colors.accent
+                btn.TextColor3 = Colors.white
+            end
+        end)
+        shopButtons[itemData.Name] = btn
+    end
+
+    -- Auto Buy Toggle
+    local autoBuyBtn = Instance.new("TextButton")
+    autoBuyBtn.Size = UDim2.new(1, -8, 0, 35)
+    autoBuyBtn.BackgroundColor3 = Colors.panel
+    autoBuyBtn.Text = "Auto Buy: OFF"
+    autoBuyBtn.TextColor3 = Colors.textDim
+    autoBuyBtn.Font = Enum.Font.GothamBold
+    autoBuyBtn.TextSize = 13
+    autoBuyBtn.Parent = pages["Race"]
+    Instance.new("UICorner", autoBuyBtn).CornerRadius = UDim.new(0, 6)
+    
+    autoBuyBtn.MouseButton1Click:Connect(function()
+        State.AutoBuy = not State.AutoBuy
+        if State.AutoBuy then
+            autoBuyBtn.Text = "Auto Buy: ON"
+            autoBuyBtn.BackgroundColor3 = Colors.success
+            autoBuyBtn.TextColor3 = Colors.white
+            startAutoBuy()
+        else
+            autoBuyBtn.Text = "Auto Buy: OFF"
+            autoBuyBtn.BackgroundColor3 = Colors.panel
+            autoBuyBtn.TextColor3 = Colors.textDim
         end
     end)
 
